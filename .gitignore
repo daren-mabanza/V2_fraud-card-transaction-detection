@@ -1,5 +1,5 @@
-01_data/01_raw
-01_data/02_processed
-hugging_face_token.json
-openai_token.json
-perplexity_api_key.json
+01_data/*
+06_models/*
+07_artifacts/*
+
+.env
