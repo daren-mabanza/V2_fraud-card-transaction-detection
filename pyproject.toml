@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "V2-fraud-detection"
+version = "2.0.0"
+description = "Projet de détection de la fraude sur les transactions bancaires"
+readme = "README.md"
+requires-python = "==3.11"
+authors = [
+    { name = "Daren Mabanza", email = "daren77186@icloud.com" }
+]
+
+dependencies = []
+
+[project.optional-dependencies]
+dev = []
+
+[project.scripts]
+
+
+[project.urls]
+
+[tool.setuptools.packages.find]
+where = ["src"]

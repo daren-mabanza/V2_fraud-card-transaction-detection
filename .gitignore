@@ -1,4 +1,5 @@
-01_data/*
+01_data/01_raw_data/fraudTest.csv
+01_data/01_raw_data/fraudTrain.csv
 06_models/*
 07_artifacts/*
 
