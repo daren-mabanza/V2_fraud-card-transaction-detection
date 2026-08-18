@@ -1,5 +1,7 @@
-01_data/01_raw_data/fraudTest.csv
-01_data/01_raw_data/fraudTrain.csv
+01_data/01_raw_data/FullData.parquet
+01_data/01_raw_data/SampleData.parquet
+01_data/02_intermediate_data/FullDataForEda.parquet
+01_data/02_intermediate_data/SampleDataForEda.parquet
 
 03_src/V2_fraud_detection.egg-info
 
@@ -7,3 +9,4 @@ uv.lock
 
 .env
 .venv
+.vscode
