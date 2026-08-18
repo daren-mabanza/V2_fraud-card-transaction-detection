@@ -1,0 +1,10 @@
+data:
+  raw: 01_data/01_raw_data
+  intermediate: 01_data/02_intermediate_data
+  processed: 01_data/03_processed_data
+
+file:
+  full_import: FullData.parquet
+  sample_import: SampleData.parquet
+  full_export: FullDataForEda.parquet
+  sample_export: SampleDataForEda.parquet 
