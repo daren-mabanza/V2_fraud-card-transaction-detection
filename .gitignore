@@ -5,8 +5,6 @@
 
 03_src/V2_fraud_detection.egg-info
 
-uv.lock
-
 .env
 .venv
 .vscode
