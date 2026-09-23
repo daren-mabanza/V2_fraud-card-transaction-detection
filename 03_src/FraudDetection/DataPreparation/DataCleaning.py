@@ -8,15 +8,15 @@ from Tools.DataManipulation import convert_columns_type
 
 # ------------------------------------------------------------------------------------------------------ 
 
-def full_data_cleaning():
+def data_cleaning():
     """
     ATTENTION: 
-        Version pour la base de données complète (Full)
+        Version pour les deux bases de données (Full & Sample)
         
     Actions: 
     Nettoie les données brutes et prépare le jeu de données pour l'EDA.
 
-    La fonction lit ``FullData.parquet``, applique les transformations 
+    La fonction lit ``FullData.parquet`` (ou ``SampleData.parquet``), applique les transformations 
     et conversions de types nécessaires, contrôle la structure minimale
     du résultat, puis écrit les données nettoyées dans ``DataForEda.parquet``.
 
@@ -33,6 +33,8 @@ def full_data_cleaning():
     
     config = yaml.safe_load(open("11_configs/paths.yaml"))
     echantillon = config["echantillon"]["type"]
+    
+    print("step_1_data_cleaning - 0. Import des configurations - OK")
         
     # 1. Import des données
         
@@ -91,7 +93,7 @@ def full_data_cleaning():
     
     try:
         df_copy.to_parquet(f"01_data/02_intermediate_data/{echantillon}DataForEda.parquet")
-        print("step_1_data_cleaning - 5. Export des données - OK")
+        print("step_1_data_cleaning - 6. Export des données - OK")
         
     except FileNotFoundError:
-        raise FileNotFoundError("step_1_data_cleaning - 5. Export des données - Le fichier est introuvable")
+        raise FileNotFoundError("step_1_data_cleaning - 6. Export des données - Le fichier est introuvable")
