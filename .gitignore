@@ -2,8 +2,15 @@
 01_data/01_raw_data/SampleData.parquet
 01_data/02_intermediate_data/FullDataForEda.parquet
 01_data/02_intermediate_data/SampleDataForEda.parquet
+01_data/03_processed_data/SampleDataForModel.parquet
+01_data/03_processed_data/FullDataForModel.parquet
 
 03_src/V2_fraud_detection.egg-info
+03_src/FraudDetection/DataModelling/__pycache__/
+03_src/FraudDetection/DataPreparation/__pycache__/
+03_src/Tools/__pycache__/
+
+
 
 .env
 .venv
