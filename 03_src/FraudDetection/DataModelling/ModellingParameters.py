@@ -74,7 +74,7 @@ def custom_isolation_forest():
     custom_isolation_forest = CustomIsolationForest(
         n_estimators = 300,
         max_samples = "auto",
-        contamination = 0.01,
+        contamination = 0.006,
     )
     
     return custom_isolation_forest
