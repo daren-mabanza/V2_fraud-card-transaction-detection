@@ -13,6 +13,7 @@ authors = [
 
 dependencies = [
     "duckdb>=1.5.5",
+    "fastapi[standard]>=0.142.0",
     "fastparquet>=2026.5.0",
     "kaleido>=1.4.0",
     "matplotlib>=3.11.2",
@@ -25,6 +26,7 @@ dependencies = [
     "scikit-learn>=1.9.1",
     "scipy>=1.18.1",
     "seaborn>=0.13.2",
+    "streamlit>=1.64.0",
     "xgboost>=3.4.1",
 ]
 
