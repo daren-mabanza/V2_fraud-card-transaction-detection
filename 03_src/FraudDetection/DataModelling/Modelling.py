@@ -278,11 +278,16 @@ def modelling():
     
     
     
-    # 12. Export du modèle
+    # 12. Export des artefacts
     
     joblib.dump(
         value = model,
         filename = f"06_models/{echantillon}XGBoostModel_V1.joblib",
+    )
+    
+    joblib.dump(
+        value = cost_optimizer,
+        filename = f"07_artifacts/{echantillon}CostOptimizer.joblib",
     )   
     
     print("step_3_modelling - Export du modèle : OK")
