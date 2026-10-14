@@ -10,6 +10,7 @@
 03_src/FraudDetection/DataPreparation/__pycache__/
 03_src/Tools/__pycache__/
 03_src/StreamlitTabs/__pycache__
+03_src/FastAPITools/PydanticSchemas/__pycache__
 
 09_app_fastapi/__pycache__
 
