@@ -12,26 +12,45 @@ authors = [
 ]
 
 dependencies = [
-    "duckdb>=1.5.5",
-    "fastapi[standard]>=0.142.0",
-    "fastparquet>=2026.5.0",
-    "kaleido>=1.4.0",
-    "matplotlib>=3.11.2",
-    "numpy>=2.5.2",
-    "pandas>=3.0.5",
-    "plotly>=7.1.0",
-    "pyarrow>=25.0.1",
-    "pydantic>=2.13.4",
-    "pyyaml>=6.0.3",
-    "scikit-learn>=1.9.1",
-    "scipy>=1.18.1",
-    "seaborn>=0.13.2",
-    "streamlit>=1.64.0",
-    "xgboost>=3.4.1",
+    "ipykernel>=7.3.0",
 ]
 
 [project.optional-dependencies]
-dev = []
+
+ml = [
+    "pandas>=3.0.5",
+    "numpy>=2.5.2",
+    "scikit-learn>=1.9.1",
+    "xgboost>=3.4.1",
+    "pyyaml>=6.0.3",
+]
+
+exploration = [
+    "duckdb>=1.5.5",
+    "fastparquet>=2026.5.0",
+    "kaleido>=1.4.0",
+    "matplotlib>=3.11.2",
+    "plotly>=7.1.0",
+    "pyarrow>=25.0.1",
+    "scipy>=1.18.1",
+    "seaborn>=0.13.2",
+]
+
+fastapi = [
+    "fastapi[standard]>=0.142.0",
+    "pydantic>=2.13.4",
+    "pandas>=3.0.5",
+    "numpy>=2.5.2",
+    "scikit-learn>=1.9.1",
+    "xgboost>=3.4.1",
+    "pyyaml>=6.0.3",
+    "matplotlib>=3.11.2",
+    "pyarrow>=25.0.1",
+]
+
+streamlit = [
+    "streamlit>=1.64.0",
+]
 
 [project.scripts]
 
@@ -40,8 +59,3 @@ dev = []
 
 [tool.setuptools.packages.find]
 where = ["03_src"]
-
-[dependency-groups]
-dev = [
-    "ipykernel>=7.3.0",
-]

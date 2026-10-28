@@ -2365,52 +2365,70 @@ name = "v2-fraud-detection"
 version = "2.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "ipykernel" },
+]
+
+[package.optional-dependencies]
+exploration = [
     { name = "duckdb" },
-    { name = "fastapi", extra = ["standard"] },
     { name = "fastparquet" },
     { name = "kaleido" },
     { name = "matplotlib" },
+    { name = "plotly" },
+    { name = "pyarrow" },
+    { name = "scipy" },
+    { name = "seaborn" },
+]
+fastapi = [
+    { name = "fastapi", extra = ["standard"] },
+    { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
-    { name = "plotly" },
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "scikit-learn" },
-    { name = "scipy" },
-    { name = "seaborn" },
-    { name = "streamlit" },
     { name = "xgboost" },
 ]
-
-[package.dev-dependencies]
-dev = [
-    { name = "ipykernel" },
+ml = [
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "pyyaml" },
+    { name = "scikit-learn" },
+    { name = "xgboost" },
+]
+streamlit = [
+    { name = "streamlit" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "duckdb", specifier = ">=1.5.5" },
-    { name = "fastapi", extras = ["standard"], specifier = ">=0.142.0" },
-    { name = "fastparquet", specifier = ">=2026.5.0" },
-    { name = "kaleido", specifier = ">=1.4.0" },
-    { name = "matplotlib", specifier = ">=3.11.2" },
-    { name = "numpy", specifier = ">=2.5.2" },
-    { name = "pandas", specifier = ">=3.0.5" },
-    { name = "plotly", specifier = ">=7.1.0" },
-    { name = "pyarrow", specifier = ">=25.0.1" },
-    { name = "pydantic", specifier = ">=2.13.4" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "scikit-learn", specifier = ">=1.9.1" },
-    { name = "scipy", specifier = ">=1.18.1" },
-    { name = "seaborn", specifier = ">=0.13.2" },
-    { name = "streamlit", specifier = ">=1.64.0" },
-    { name = "xgboost", specifier = ">=3.4.1" },
+    { name = "duckdb", marker = "extra == 'exploration'", specifier = ">=1.5.5" },
+    { name = "fastapi", extras = ["standard"], marker = "extra == 'fastapi'", specifier = ">=0.142.0" },
+    { name = "fastparquet", marker = "extra == 'exploration'", specifier = ">=2026.5.0" },
+    { name = "ipykernel", specifier = ">=7.3.0" },
+    { name = "kaleido", marker = "extra == 'exploration'", specifier = ">=1.4.0" },
+    { name = "matplotlib", marker = "extra == 'exploration'", specifier = ">=3.11.2" },
+    { name = "matplotlib", marker = "extra == 'fastapi'", specifier = ">=3.11.2" },
+    { name = "numpy", marker = "extra == 'fastapi'", specifier = ">=2.5.2" },
+    { name = "numpy", marker = "extra == 'ml'", specifier = ">=2.5.2" },
+    { name = "pandas", marker = "extra == 'fastapi'", specifier = ">=3.0.5" },
+    { name = "pandas", marker = "extra == 'ml'", specifier = ">=3.0.5" },
+    { name = "plotly", marker = "extra == 'exploration'", specifier = ">=7.1.0" },
+    { name = "pyarrow", marker = "extra == 'exploration'", specifier = ">=25.0.1" },
+    { name = "pyarrow", marker = "extra == 'fastapi'", specifier = ">=25.0.1" },
+    { name = "pydantic", marker = "extra == 'fastapi'", specifier = ">=2.13.4" },
+    { name = "pyyaml", marker = "extra == 'fastapi'", specifier = ">=6.0.3" },
+    { name = "pyyaml", marker = "extra == 'ml'", specifier = ">=6.0.3" },
+    { name = "scikit-learn", marker = "extra == 'fastapi'", specifier = ">=1.9.1" },
+    { name = "scikit-learn", marker = "extra == 'ml'", specifier = ">=1.9.1" },
+    { name = "scipy", marker = "extra == 'exploration'", specifier = ">=1.18.1" },
+    { name = "seaborn", marker = "extra == 'exploration'", specifier = ">=0.13.2" },
+    { name = "streamlit", marker = "extra == 'streamlit'", specifier = ">=1.64.0" },
+    { name = "xgboost", marker = "extra == 'fastapi'", specifier = ">=3.4.1" },
+    { name = "xgboost", marker = "extra == 'ml'", specifier = ">=3.4.1" },
 ]
-provides-extras = ["dev"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "ipykernel", specifier = ">=7.3.0" }]
+provides-extras = ["ml", "exploration", "fastapi", "streamlit"]
 
 [[package]]
 name = "watchdog"
