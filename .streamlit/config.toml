@@ -19,3 +19,7 @@ borderColor = "#32415B"
 
 [client]
 toolbarMode = "minimal"
+
+[server]
+# Recharger l'application lorsque ses fichiers Python sont enregistrés.
+runOnSave = true

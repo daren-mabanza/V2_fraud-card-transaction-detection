@@ -40,7 +40,6 @@
 .step-number { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: #edf2ff; color: #3158b9; font-size: 13px; font-weight: 700; }
 .step-card h3 { margin: 0.6rem 0 0.5rem; padding: 0 !important; font-size: 17px !important; }
 .step-card p { color: #53647b; font-size: 14px; line-height: 1.75; margin-bottom: 0; }
-.cost-formula { padding: 1rem 1.2rem; margin: 0.7rem 0; background: #edf2ff; border-left: 3px solid #3765e8; border-radius: 6px; color: #20438e; font-size: 15px; font-weight: 600; }
 .empty-result { padding: 1.8rem; border: 1px dashed #c7d2e2; border-radius: 14px; text-align: center; margin-top: 1rem; color: #586a82; }
 .empty-result strong { font-size: 16px; color: #304660; }
 .empty-result p { margin: 0.4rem 0 0; font-size: 14px; }
@@ -57,6 +56,15 @@
 .result-probability strong { display: block; font-size: 40px; line-height: 1.2; letter-spacing: -0.025em; }
 .result-probability small { font-size: 20px; }
 .result-recap { font-size: 13px; margin: 1rem 0 0; padding-top: 1rem; border-top: 1px solid #14243c20; line-height: 1.7; }
+.st-key-model_info { background: #fff; border-radius: 16px; }
+.st-key-model_info h3 { padding-top: 0 !important; }
+.model-info-grid { display: grid; grid-template-columns: minmax(0, 2fr) 1fr 1fr; gap: 1rem; margin: 0.6rem 0 1.2rem; }
+.model-info-grid dt, .model-info-label { color: #53647b; font-size: 13px; }
+.model-info-grid dd { margin: 0.3rem 0 0; color: #172b47; font-size: 19px; font-weight: 700; overflow-wrap: anywhere; }
+.model-inputs { padding-top: 1rem; border-top: 1px solid #e4eaf2; }
+.model-variables { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.6rem 0; }
+.model-variable { display: inline-flex; gap: 0.45rem; align-items: center; padding: 0.35rem 0.7rem; border-radius: 8px; background: #edf2ff; color: #24478b; font-size: 13px; }
+.model-variable code { padding: 0; background: transparent; color: #465d87; font-size: 12px; }
 @media (max-width: 768px) {
     [data-testid="stMainBlockContainer"] { padding: 2rem 1rem; }
     [data-testid="stForm"] { padding: 1.1rem; }
@@ -64,4 +72,5 @@
     .overview-strip span { font-size: 12px; }
     .result-card { padding: 1.3rem; }
     .result-body { align-items: flex-start; flex-direction: column; gap: 1rem; }
+    .model-info-grid { grid-template-columns: 1fr; gap: 0.8rem; }
 }
