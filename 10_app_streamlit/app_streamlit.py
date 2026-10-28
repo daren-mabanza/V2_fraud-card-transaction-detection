@@ -3,7 +3,8 @@
 Depuis la racine du projet :
     streamlit run 10_app_streamlit/app_streamlit.py
 
-FRAUD_API_URL permet de remplacer http://127.0.0.1:8000.
+FRAUD_API_URL permet de remplacer http://0.0.0.0:8000 pour les deux routes :
+GET /model-info (informations du modèle) et POST /predict (simulation).
 """
 
 import os
@@ -30,8 +31,8 @@ def ouvrir_outil():
 def main():
     """Configure l'application et affiche la page choisie dans la sidebar."""
     st.set_page_config(
-        page_title="Vigie · Détection de fraude",
-        page_icon="🛡️",
+        page_title="FraudLens",
+        page_icon="👁️",
         layout="wide",
         initial_sidebar_state="expanded",
     )
@@ -40,8 +41,8 @@ def main():
     with st.sidebar:
         st.html('''
             <div class="brand">
-                <span class="brand-mark" aria-hidden="true">V</span>
-                <div><strong>VIGIE</strong><span>Détection de fraude</span></div>
+                <span class="brand-mark" aria-hidden="true">👁️</span>
+                <div><strong>FraudLens</strong><span>Détection de fraude</span></div>
             </div>
             <p class="nav-label">VOTRE ESPACE</p>
         ''')
@@ -60,10 +61,11 @@ def main():
             </div>
         ''')
 
+    # Les deux onglets utilisent le même service pour les informations et la prédiction.
+    api_url = os.environ.get("FRAUD_API_URL", "http://127.0.0.1:8000")
     if page == "Présentation du projet":
-        onglet_1.afficher_onglet(ouvrir_outil)
+        onglet_1.afficher_onglet(ouvrir_outil, api_url)
     else:
-        api_url = os.environ.get("FRAUD_API_URL", "http://127.0.0.1:8000")
         onglet_2.afficher_onglet(api_url)
 
 
