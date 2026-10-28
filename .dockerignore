@@ -1,0 +1,73 @@
+# Contexte commun aux images API et Streamlit (racine du projet).
+# Conserver pyproject.toml, uv.lock et README.md pour installer le projet.
+# Conserver 03_src, 06_models et 07_artifacts pour les imports et joblib.
+# Conserver les deux applications, leurs assets et .streamlit/config.toml.
+
+# Données, exploration et entraînement hors des applications
+01_data/
+02_notebooks/
+04_scripts/
+05_pipeline/
+08_outputs/
+**/*.ipynb
+**/.ipynb_checkpoints/
+
+# Environnements et fichiers Python générés localement
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/.eggs/
+build/
+dist/
+
+# Tests, couverture et caches des outils
+tests/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.tox/
+**/.nox/
+**/.cache/
+**/.coverage
+**/.coverage.*
+htmlcov/
+coverage.xml
+
+# Secrets et configuration locale
+**/.env
+**/.env.*
+**/.streamlit/secrets.toml
+**/.aws/
+**/.ssh/
+
+# Git, éditeurs et outils de développement
+**/.git/
+.github/
+**/.gitignore
+**/.gitattributes
+**/.gitkeep
+**/.vscode/
+**/.idea/
+**/.agents/
+**/.codex/
+
+# Fichiers temporaires et journaux
+**/*.log
+**/*.tmp
+**/*.bak
+**/*.swp
+**/*.swo
+**/*~
+**/.DS_Store
+**/Thumbs.db
+
+# Fichiers de construction inutiles à l'exécution
+**/Dockerfile
+**/Dockerfile.*
+**/*.dockerignore
+compose*.yaml
+compose*.yml
+docker-compose*.yaml
+docker-compose*.yml
