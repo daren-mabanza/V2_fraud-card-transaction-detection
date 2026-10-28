@@ -6,7 +6,7 @@ class PredictionInput(BaseModel):
     
     amt: float = Field(gt=0, strict=True)
     
-    heure: int = Field(gt=0, le=23, strict=True)
+    heure: int = Field(ge=0, le=23, strict=True)
     
     jour: Literal[
         "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
