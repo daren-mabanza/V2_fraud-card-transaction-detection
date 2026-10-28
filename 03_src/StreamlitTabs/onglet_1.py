@@ -1,18 +1,109 @@
 """Présentation du projet, des transformations et de la décision de fraude."""
 
 from collections.abc import Callable
+from html import escape
+import json
+import math
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 
 import streamlit as st
 
 
 
-def afficher_onglet(ouvrir_outil: Callable[[], None]):
+class ModelInfoError(RuntimeError):
+    """Informations du modèle indisponibles ou non conformes."""
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def obtenir_informations_modele(api_url: str) -> dict:
+    """Lit GET /model-info et garde une réponse valide en cache pendant 60 s.
+
+    Renvoie model, version, seuil (entre 0 et 1) et variables. Le cache est
+    distinct par URL de service. Les erreurs lèvent ModelInfoError et ne sont
+    pas mises en cache ; aucun modèle n'est chargé dans l'interface.
+    """
+    try:
+        parsed = urlsplit(api_url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError
+        request = Request(
+            api_url.rstrip("/") + "/model-info",
+            headers={"Accept": "application/json"}, method="GET",
+        )
+    except (TypeError, ValueError) as exc:
+        raise ModelInfoError("L’adresse du service d’informations est invalide.") from exc
+
+    try:
+        with urlopen(request, timeout=5) as response:
+            result = json.load(response)
+    except HTTPError as exc:
+        exc.close()
+        raise ModelInfoError("Le service ne peut pas fournir les informations du modèle pour le moment.") from exc
+    except (TimeoutError, URLError, OSError) as exc:
+        raise ModelInfoError("Le service d’informations est temporairement injoignable.") from exc
+    except (ValueError, UnicodeError) as exc:
+        raise ModelInfoError("Le service a renvoyé des informations illisibles.") from exc
+
+    if not isinstance(result, dict):
+        raise ModelInfoError("Les informations reçues sont incomplètes ou invalides.")
+    threshold = result.get("seuil")
+    variables = result.get("variables")
+    if (not isinstance(result.get("model"), str) or not result["model"].strip()
+            or not isinstance(result.get("version"), str) or not result["version"].strip()
+            or isinstance(threshold, bool) or not isinstance(threshold, (int, float))
+            or not math.isfinite(threshold) or not 0 < threshold < 1
+            or not isinstance(variables, list)
+            or not all(isinstance(name, str) and name.strip() for name in variables)):
+        raise ModelInfoError("Les informations reçues sont incomplètes ou invalides.")
+    return {key: result[key] for key in ("model", "version", "seuil", "variables")}
+
+
+def afficher_informations_modele(api_url: str):
+    """Affiche les métadonnées du service sans bloquer la présentation en cas d'erreur."""
+    with st.container(border=True, key="model_info"):
+        title, refresh = st.columns([3, 1], vertical_alignment="center")
+        with title:
+            st.subheader("Informations sur le modèle")
+        with refresh:
+            if st.button("Actualiser", icon=":material/refresh:", key="actualiser_modele", width="stretch"):
+                obtenir_informations_modele.clear(api_url)
+        try:
+            info = obtenir_informations_modele(api_url)
+        except ModelInfoError as exc:
+            st.info(f"{exc} Vous pouvez toujours tester une transaction ou actualiser cet encadré.")
+            return
+
+        threshold = f"{100 * info['seuil']:.2f}".replace(".", ",")
+        labels = {"amt": "Montant", "heure": "Heure", "jour": "Jour", "category": "Catégorie", "state": "État"}
+        variables = "".join(
+            f'<span class="model-variable">{escape(labels.get(name, name))} '
+            f'<code>{escape(name)}</code></span>' for name in info["variables"]
+        ) or '<span class="model-info-label">Aucune variable indiquée par le service.</span>'
+        st.html(f'''
+            <dl class="model-info-grid">
+                <div><dt>Modèle</dt><dd>{escape(info['model'])}</dd></div>
+                <div><dt>Version</dt><dd>{escape(info['version'])}</dd></div>
+                <div><dt>Seuil de décision</dt><dd>{threshold} %</dd></div>
+            </dl>
+            <div class="model-inputs">
+                <span class="model-info-label">Variables d’entrée</span>
+                <div class="model-variables">{variables}</div>
+            </div>
+        ''')
+        st.caption("Seuil communiqué par le service, affiché en pourcentage. La décision reste calculée par l’API.")
+
+
+def afficher_onglet(ouvrir_outil: Callable[[], None], api_url: str):
     """Affiche les explications et un accès au formulaire de transaction.
 
     Parameters
     ----------
     ouvrir_outil : callable
         Callback de navigation vers le deuxième onglet.
+    api_url : str
+        URL de base du service fournissant les informations via GET /model-info.
     """
     st.html('''
         <div class="hero">
@@ -40,14 +131,7 @@ def afficher_onglet(ouvrir_outil: Callable[[], None]):
             on_click=ouvrir_outil, key="ouvrir_simulateur",
         )
 
-    st.subheader("Les cinq informations d’entrée")
-    st.table([
-        {"Variable": "Montant · amt", "Description": "Montant de la transaction, en dollars américains (USD)."},
-        {"Variable": "Heure · heure", "Description": "Heure de la transaction, de 0 à 23."},
-        {"Variable": "Jour · jour", "Description": "Jour de la semaine ; le libellé français est traduit pour le modèle."},
-        {"Variable": "Catégorie · category", "Description": "Type d’achat : courses, restaurant, transport, achats en ligne…"},
-        {"Variable": "État · state", "Description": "État américain de la transaction, transmis sous son code à deux lettres."},
-    ])
+    afficher_informations_modele(api_url)
 
     st.subheader("Du formulaire à la décision")
     steps = [
@@ -81,35 +165,4 @@ def afficher_onglet(ouvrir_outil: Callable[[], None]):
         "application, les transformations apprises sont réutilisées sans réentraînement."
     )
 
-    st.subheader("Pourquoi ce seuil de décision ?")
-    with st.container(border=True):
-        st.write(
-            "Le seuil ne vaut pas automatiquement 50 %. Il est choisi sur le jeu de "
-            "validation en comparant 200 seuils entre 0 et 1 pour minimiser le coût des erreurs."
-        )
-        left, right = st.columns(2)
-        with left:
-            st.metric("Fausse alerte", "20$", help="Coût unitaire d’un faux positif.")
-            st.caption("Une transaction légitime est signalée comme frauduleuse.")
-        with right:
-            st.metric("Fraude manquée", "125$", help="Coût unitaire d’un faux négatif.")
-            st.caption("Une transaction frauduleuse n’est pas détectée.")
-        st.html('''
-            <div class="cost-formula">Coût total = 20 × fausses alertes + 125 × fraudes manquées</div>
-        ''')
-        st.caption(
-            "Coûts exprimés dans une même unité, selon la configuration de cette version du projet. "
-            "Le seuil enregistré par le service de prédiction fait foi pour chaque simulation."
-        )
-        st.write(
-            "Pour séparer apprentissage et évaluation : train en 2019, validation de janvier "
-            "à septembre 2020, puis test d’octobre à décembre 2020."
-        )
-
-    st.subheader("Comment lire les résultats ?")
-    st.table([
-        {"Sortie": "Probabilité de fraude", "Lecture": "Estimation affichée de 0 à 100 %. Un pourcentage plus élevé indique un risque estimé plus élevé."},
-        {"Sortie": "Prédiction · 0 ou 1", "Lecture": "0 : transaction acceptée. 1 : transaction refusée. La décision dépend du seuil du service, pas d’un seuil fixé à 50 %."},
-        {"Sortie": "Message", "Lecture": "La décision est mise en évidence en vert clair ou en rouge clair."},
-    ])
     st.caption("Une probabilité est une estimation du modèle, pas une certitude sur la transaction.")
