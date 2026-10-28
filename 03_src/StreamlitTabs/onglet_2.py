@@ -51,7 +51,6 @@ class PredictionError(RuntimeError):
     """Erreur du service de prédiction présentable à l'utilisateur."""
 
 
-
 def demander_prediction(transaction: dict, api_url: str) -> dict:
     """Envoie une transaction à l'API et valide la décision reçue.
 
@@ -148,8 +147,9 @@ def afficher_resultat(resultat: dict):
 
 
 def afficher_onglet(api_url: str):
-    """Affiche le formulaire et appelle l'API uniquement à sa soumission.
+    """Affiche le formulaire de transaction et son résultat.
 
+    La route de prédiction est appelée uniquement à la soumission du formulaire.
     Conserve la dernière transaction soumise et sa réponse dans la session.
     En cas d'échec d'une nouvelle analyse, l'ancien résultat est effacé pour
     qu'il ne puisse pas être confondu avec une réponse à la nouvelle demande.
@@ -162,6 +162,7 @@ def afficher_onglet(api_url: str):
             frauduleuse. Le résultat affiche sa décision et la probabilité de fraude estimée.</p>
         </div>
     ''')
+
     draft = st.session_state.get("derniere_transaction", DEFAULT_TRANSACTION)
     with st.form("transaction_form", border=True):
         st.subheader("Les détails de votre transaction")
@@ -169,7 +170,7 @@ def afficher_onglet(api_url: str):
         left, right = st.columns(2, gap="large")
         with left:
             amount = st.number_input(
-                "Montant (USD)", min_value=0.0, value=float(draft["amt"]), step=1.0,
+                "Montant (USD)", min_value=0.1, value=float(draft["amt"]), step=1.0,
                 format="%.2f", key="transaction_amt", help="Montant libre, positif ou nul, sans plafond imposé.",
             )
             day = st.selectbox(
