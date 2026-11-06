@@ -3,7 +3,7 @@
 Depuis la racine du projet :
     streamlit run 10_app_streamlit/app_streamlit.py
 
-FRAUD_API_URL permet de remplacer http://0.0.0.0:8000 pour les deux routes :
+FRAUD_API_URL permet de remplacer http://127.0.0.1:8080 pour les deux routes :
 GET /model-info (informations du modèle) et POST /predict (simulation).
 """
 
@@ -62,7 +62,7 @@ def main():
         ''')
 
     # Les deux onglets utilisent le même service pour les informations et la prédiction.
-    api_url = os.environ.get("FRAUD_API_URL", "http://127.0.0.1:8000")
+    api_url = os.environ.get("FRAUD_API_URL", "http://127.0.0.1:8080")
     if page == "Présentation du projet":
         onglet_1.afficher_onglet(ouvrir_outil, api_url)
     else:
