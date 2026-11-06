@@ -16,4 +16,4 @@ RUN uv sync --locked --no-dev --extra streamlit
 
 EXPOSE 8501
 
-CMD ["uv","run","--no-sync","streamlit","run","10_app_streamlit/app_streamlit.py"]
+CMD ["uv","run","--no-sync","streamlit","run","10_app_streamlit/app_streamlit.py","--server.address","0.0.0.0","--server.port","8501"]
