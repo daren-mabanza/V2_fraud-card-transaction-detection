@@ -11,7 +11,13 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
+from google.auth.exceptions import GoogleAuthError
+from google.auth.transport import requests
+from google.oauth2 import id_token
+
 import streamlit as st
+
+URL_API = "https://api-fraud-detection-967845542272.europe-west1.run.app"
 
 JOURS = {
     "Monday": "Lundi", "Tuesday": "Mardi", "Wednesday": "Mercredi",
@@ -70,9 +76,17 @@ def demander_prediction(transaction: dict, api_url: str) -> dict:
     Raises
     ------
     PredictionError
-        Si le service est indisponible, refuse la requête, dépasse le délai
-        de 12 secondes ou renvoie une réponse non conforme.
+        Si le token ne peut pas être obtenu, si le service est indisponible,
+        refuse la requête, dépasse le délai de 12 secondes ou renvoie une
+        réponse non conforme.
     """
+    try:
+        token = id_token.fetch_id_token(requests.Request(), URL_API)
+    except GoogleAuthError as exc:
+        raise PredictionError(
+            "Impossible d’obtenir le token d’authentification. Vérifiez les identifiants Google du service."
+        ) from exc
+
     try:
         parsed = urlsplit(api_url)
         if parsed.scheme not in ("http", "https") or not parsed.netloc:
@@ -80,7 +94,7 @@ def demander_prediction(transaction: dict, api_url: str) -> dict:
         request = Request(
             api_url.rstrip("/") + "/predict",
             data=json.dumps(transaction, allow_nan=False).encode("utf-8"),
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"},
             method="POST",
         )
     except (ValueError, TypeError) as exc:
@@ -91,7 +105,11 @@ def demander_prediction(transaction: dict, api_url: str) -> dict:
         with urlopen(request, timeout=12) as response:
             result = json.load(response)
     except HTTPError as exc:
-        if exc.code == 422:
+        if exc.code == 401:
+            message = "Authentification refusée (401) : le token est absent, invalide ou expiré."
+        elif exc.code == 403:
+            message = "Accès interdit (403) : vérifiez le token et les autorisations du compte de service pour appeler l’API."
+        elif exc.code == 422:
             message = "Le service n’a pas pu valider cette transaction. Vérifiez les champs puis réessayez."
         else:
             message = "Le service de prédiction a rencontré une erreur. Réessayez dans quelques instants."

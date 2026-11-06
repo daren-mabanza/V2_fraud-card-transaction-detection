@@ -8,8 +8,14 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
+from google.auth.exceptions import GoogleAuthError
+from google.auth.transport import requests
+from google.oauth2 import id_token
+
 import streamlit as st
 
+
+URL_API = "https://api-fraud-detection-967845542272.europe-west1.run.app"
 
 
 class ModelInfoError(RuntimeError):
@@ -25,12 +31,19 @@ def obtenir_informations_modele(api_url: str) -> dict:
     pas mises en cache ; aucun modèle n'est chargé dans l'interface.
     """
     try:
+        token = id_token.fetch_id_token(requests.Request(), URL_API)
+    except GoogleAuthError as exc:
+        raise ModelInfoError(
+            "Impossible d’obtenir le token d’authentification. Vérifiez les identifiants Google du service."
+        ) from exc
+
+    try:
         parsed = urlsplit(api_url)
         if parsed.scheme not in ("http", "https") or not parsed.netloc:
             raise ValueError
         request = Request(
             api_url.rstrip("/") + "/model-info",
-            headers={"Accept": "application/json"}, method="GET",
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}, method="GET",
         )
     except (TypeError, ValueError) as exc:
         raise ModelInfoError("L’adresse du service d’informations est invalide.") from exc
@@ -39,10 +52,28 @@ def obtenir_informations_modele(api_url: str) -> dict:
         with urlopen(request, timeout=5) as response:
             result = json.load(response)
     except HTTPError as exc:
+        if exc.code == 401:
+            message = "Authentification refusée (401) : le token est absent, invalide ou expiré."
+        elif exc.code == 403:
+            message = "Accès interdit (403) : vérifiez le token et les autorisations du compte de service pour appeler l’API."
+        elif exc.code == 404:
+            message = "La route d’informations du modèle est introuvable (404). Vérifiez l’adresse du service et la présence de /model-info."
+        elif exc.code == 429:
+            message = "Trop de requêtes vers le service d’informations (429). Patientez avant d’actualiser."
+        elif 500 <= exc.code < 600:
+            message = f"Le service d’informations a rencontré une erreur serveur ({exc.code}). Réessayez dans quelques instants."
+        else:
+            message = f"Le service ne peut pas fournir les informations du modèle (erreur HTTP {exc.code})."
         exc.close()
-        raise ModelInfoError("Le service ne peut pas fournir les informations du modèle pour le moment.") from exc
-    except (TimeoutError, URLError, OSError) as exc:
-        raise ModelInfoError("Le service d’informations est temporairement injoignable.") from exc
+        raise ModelInfoError(message) from exc
+    except TimeoutError as exc:
+        raise ModelInfoError("Le service d’informations n’a pas répondu dans le délai de 5 secondes. Réessayez.") from exc
+    except (URLError, OSError) as exc:
+        if isinstance(exc, URLError) and isinstance(exc.reason, TimeoutError):
+            message = "Le service d’informations n’a pas répondu dans le délai de 5 secondes. Réessayez."
+        else:
+            message = "Le service d’informations est injoignable. Vérifiez la connexion et que le service est démarré."
+        raise ModelInfoError(message) from exc
     except (ValueError, UnicodeError) as exc:
         raise ModelInfoError("Le service a renvoyé des informations illisibles.") from exc
 
