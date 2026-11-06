@@ -50,6 +50,7 @@ fastapi = [
 ]
 
 streamlit = [
+    "google-auth>=2.62.1",
     "streamlit>=1.64.0",
 ]
 
