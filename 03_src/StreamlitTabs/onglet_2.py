@@ -102,7 +102,7 @@ def demander_prediction(transaction: dict, api_url: str) -> dict:
     
     
     try:
-        with urlopen(request, timeout=12) as response:
+        with urlopen(request, timeout=60) as response:
             result = json.load(response)
     except HTTPError as exc:
         if exc.code == 401:

@@ -43,13 +43,14 @@ def obtenir_informations_modele(api_url: str) -> dict:
             raise ValueError
         request = Request(
             api_url.rstrip("/") + "/model-info",
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}, method="GET",
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            method="GET",
         )
     except (TypeError, ValueError) as exc:
         raise ModelInfoError("L’adresse du service d’informations est invalide.") from exc
 
     try:
-        with urlopen(request, timeout=5) as response:
+        with urlopen(request, timeout=60) as response:
             result = json.load(response)
     except HTTPError as exc:
         if exc.code == 401:
