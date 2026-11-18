@@ -6,6 +6,12 @@ from FraudDetection.DataModelling.Export.TestData import export_test_data
 from FraudDetection.DataModelling.Export.Shap import export_shap
 
 def main():
+    """Exécute les six étapes du pipeline dans leur ordre de dépendance.
+
+    Enchaîne nettoyage, variables historiques, entraînement, métriques métier,
+    paiements de démonstration et explainer SHAP. Les exports sont remplacés ;
+    une erreur interrompt les étapes suivantes. Lancer depuis la racine du projet.
+    """
     data_cleaning()
     feature_engineering()
     modelling()
