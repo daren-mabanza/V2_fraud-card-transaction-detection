@@ -1,19 +1,36 @@
-01_data/01_raw_data/FullData.parquet
-01_data/01_raw_data/SampleData.parquet
-01_data/02_intermediate_data/FullDataForEda.parquet
-01_data/02_intermediate_data/SampleDataForEda.parquet
-01_data/03_processed_data/SampleDataForModel.parquet
-01_data/03_processed_data/FullDataForModel.parquet
+01_data/01_raw_data/FullPaiementsCarte.parquet
+01_data/01_raw_data/SamplePaiementsCarte.parquet
+01_data/02_intermediate_data/FullPaiementsCarteForEda.parquet
+01_data/03_processed_data/FullPaiementsCarteForModel.parquet
+
+02_notebooks/01_cleaning.ipynb
+02_notebooks/02_eda.ipynb
+02_notebooks/03_model_tests.ipynb
+02_notebooks/04_api_tests.ipynb
 
 03_src/V2_fraud_detection.egg-info
 03_src/FraudDetection/DataModelling/__pycache__/
 03_src/FraudDetection/DataPreparation/__pycache__/
 03_src/Tools/__pycache__/
-03_src/StreamlitTabs/__pycache__
 03_src/FastAPITools/PydanticSchemas/__pycache__
+03_src/FraudDetection/SQL/__pycache__
+03_src/FraudDetection/DataModelling/Export/__pycache__
+
+04_scripts/__pycache__
 
 09_app_fastapi/__pycache__
 
 .env
 .venv
 .vscode
+
+# React / Node
+**/node_modules/
+10_app_react/dist/
+10_app_react/test-results/
+10_app_react/playwright-report/
+10_app_react/.env
+
+03_src/FastAPITools/__pycache__/
+
+10_app_react/tests/__pycache__/
