@@ -6,6 +6,13 @@ import path from "node:path";
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 
 // Le token et les identifiants GCP restent dans ce serveur, commun aux deux variantes.
+/**
+ * Crée le relais Express vers FastAPI et valide la configuration.
+ * Lit FRAUD_API_URL, FRAUD_AUTH_MODE et FRAUD_API_AUDIENCE par défaut ;
+ * les options permettent notamment d'injecter un client Google pour les tests.
+ * Le mode gcp exige HTTPS. Les identifiants et tokens restent côté serveur.
+ * @returns Application Express avec les seules routes API autorisées.
+ */
 export function createApp({
   apiUrl = process.env.FRAUD_API_URL || "http://127.0.0.1:8080",
   authMode = process.env.FRAUD_AUTH_MODE || "none",
@@ -33,6 +40,11 @@ export function createApp({
   app.use(express.json({ limit: "128kb" }));
   let tokenClient;
 
+  /**
+   * Transmet une requête à FastAPI, avec un ID token serveur en mode gcp.
+   * Ne transmet pas l'en-tête Authorization du navigateur. L'appel à FastAPI
+   * expire après 60 secondes ; ses erreurs sont renvoyées en JSON sans cache.
+   */
   async function relay(req, res) {
     const headers = {
       Accept: "application/json",
@@ -107,6 +119,11 @@ export function createApp({
   return app;
 }
 
+/**
+ * Démarre le relais et sert React via Vite en développement ou dist en production.
+ * Écoute sur PORT si défini, sinon 5173 en développement ou 8080 en production.
+ * @returns Serveur HTTP en écoute sur toutes les interfaces.
+ */
 export async function startServer() {
   const app = createApp();
   const development = process.env.NODE_ENV !== "production";
