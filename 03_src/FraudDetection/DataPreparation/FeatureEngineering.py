@@ -1,5 +1,7 @@
 import yaml
+import duckdb
 import pandas as pd
+from FraudDetection.SQL.Query import query
 
 # ------------------------------------------------------------------------------------------------------
 
@@ -57,7 +59,7 @@ def feature_engineering():
     
     # 1. Import des données 
     try:
-        df = pd.read_parquet(f"01_data/02_intermediate_data/{echantillon}DataForEda.parquet")
+        df = pd.read_parquet(f"01_data/02_intermediate_data/{echantillon}PaiementsCarteForEda.parquet")
         df_copy = df.copy()
         print("step_2_feature_engineering - 1. Import des données - OK")
         
@@ -65,46 +67,32 @@ def feature_engineering():
         raise FileNotFoundError("step_2_feature_engineering - 1. Import des données - Le fichier est introuvable")
     
     
-    # 2. Selection des colonnes 
-    colonnes = ["id", "trans_date_trans_time", "state", "category", "amt","is_fraud"]
-    
-    df_copy = df_copy.filter(colonnes)
-    
-    print("step_2_feature_engineering - 2. Selection des colonnes - OK")
-    
-    
-    # 3. Ajout des nouvelles colonnes
-    date_transaction = pd.to_datetime(df_copy["trans_date_trans_time"], errors="raise")
-    
-    jours_ordonnes = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    
-    df_copy["jour"] = pd.Categorical(
-        date_transaction.dt.dayofweek.map(dict(enumerate(jours_ordonnes))),
-        categories=jours_ordonnes,
-        ordered=True
-    )
-    df_copy["heure"] = date_transaction.dt.hour.astype("category")
-    
-    new_colonnes = ["id", "trans_date_trans_time", "jour", "heure", "state","category", "amt", "is_fraud"]
-    df_copy = df_copy[new_colonnes]
-    
-    print("step_2_feature_engineering - 3. Ajout des nouvelles colonnes - OK")
+    # 2. Création des nouvelles colonnes issus du feature engineering
+
+    df_copy = duckdb.sql(query()).to_df()
+
+    print("step_2_feature_engineering - 2. Création des nouvelles colonnes issus du feature engineering - OK")
     
     
-    # 4. Controle minimal de la qualité des données 
+    # 3. Controle minimal de la qualité des données
         # TODO : Mettre en place une méthode de validation des données plus robuste avec Great Expectations
         
-    if (len(list(df_copy.columns)) == 8) & ("is_fraud" in list(df_copy.columns)):
-        print("step_2_feature_engineering - 4. Controle minimal de la qualité des données - 8 colonnes | is_fraud présent : OK")
+    if (len(list(df_copy.columns)) == 104) & ("fraude_confirmee" in list(df_copy.columns)):
+        print("step_2_feature_engineering - 4. Controle minimal de la qualité des données - 104 colonnes | fraude_confirmee présent : OK")
             
     else:
         raise ValueError("ERREUR : Les données ne correspondent pas à ce qui est attendu")
     
     
-    # 5. Export des données 
+    # 4. Export des données
     try:
-        df_copy.to_parquet(f"01_data/03_processed_data/{echantillon}DataForModel.parquet")
+        df_copy.to_parquet(f"01_data/03_processed_data/{echantillon}PaiementsCarteForModel.parquet")
         print("step_2_feature_engineering - 5. Export des données - OK")
         
     except FileNotFoundError:
-        raise FileNotFoundError("step_2_feature_engineering - 5. Export des données - Le fichier est introuvable")
+        raise FileNotFoundError("step_2_feature_engineering - 4. Export des données - Le fichier est introuvable")
+
+
+    # 5. DataFrame exporté
+
+    print(f"step_2_feature_engineering - 5. DataFrame exporté - {echantillon}PaiementsCarteForModel.parquet")

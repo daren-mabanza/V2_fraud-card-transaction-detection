@@ -10,23 +10,34 @@ from Tools.DataManipulation import convert_columns_type
 
 def data_cleaning():
     """
-    ATTENTION: 
-        Version pour les deux bases de données (Full & Sample)
-        
-    Actions: 
-    Nettoie les données brutes et prépare le jeu de données pour l'EDA.
+    Prépare les données de paiements par carte pour l'EDA.
 
-    La fonction lit ``FullData.parquet`` (ou ``SampleData.parquet``), applique les transformations 
-    et conversions de types nécessaires, contrôle la structure minimale
-    du résultat, puis écrit les données nettoyées dans ``DataForEda.parquet``.
+    Le préfixe de l'échantillon (``Full`` ou ``Sample``) est lu dans
+    ``11_configs/paths.yaml``, via ``echantillon.type``. Les données sont
+    chargées depuis ``01_data/01_raw_data/{echantillon}PaiementsCarte.parquet``
+    puis copiées avant leur traitement.
+
+    Les conversions concernent l'identifiant ``id_paiement`` en texte,
+    les libellés répétés, les colonnes numériques et ``date_naissance``
+    en datetime. Les codes postaux et INSEE sont traités comme des libellés
+    pour conserver leurs zéros initiaux. Les horodatages UTC et les
+    indicateurs booléens déjà typés sont conservés.
+
+    Le contrôle minimal vérifie la présence de 35 colonnes et de la cible
+    ``fraude_confirmee``. Le résultat est enregistré dans
+    ``01_data/02_intermediate_data/{echantillon}PaiementsCarteForEda.parquet``.
 
     Returns:
         None: Le résultat est enregistré dans le répertoire intermédiaire.
 
     Raises:
+        FileNotFoundError: Si le fichier de configuration ou les données brutes
+            sont introuvables, ou si l'export échoue pour un chemin introuvable.
         KeyError: Si une colonne attendue est absente des données brutes.
-        ValueError: Si le jeu de données final ne contient pas les 15 colonnes
-            attendues ou si la colonne ``is_fraud`` est absente.
+            Également si une clé de configuration requise est absente.
+        ValueError: Si une conversion échoue, si le jeu de données final
+            ne contient pas les 35 colonnes attendues ou si la colonne
+            ``fraude_confirmee`` est absente.
     """
     
     # 0. Import des configurations
@@ -39,61 +50,73 @@ def data_cleaning():
     # 1. Import des données
         
     try:
-        full_data = pd.read_parquet(f"01_data/01_raw_data/{echantillon}Data.parquet")
+        full_data = pd.read_parquet(f"01_data/01_raw_data/{echantillon}PaiementsCarte.parquet")
         df_copy = full_data.copy()
         print("step_1_data_cleaning - 1. Import des données - OK")
             
     except FileNotFoundError:
         raise FileNotFoundError("step_1_data_cleaning - 1. Import des données - Le fichier est introuvable")
         
-    # 2. Traitemens spécifiques
-        
-        # column00
-    df_copy["column00"] = 1
-    df_copy["column00"] = df_copy["column00"].cumsum()
-    df_copy = df_copy.rename(columns={"column00":"id"})
-        
-        # merchant
-    df_copy["merchant"] = df_copy["merchant"].str.slice_replace(0,6,"")
-        
-    print("step_1_data_cleaning - 2. Traitemens spécifiques - OK")
-        
-    # 3. Suppression de colonnes
-        
-    df_copy = df_copy.drop(["cc_num","first","last","gender","street","zip","trans_num","unix_time"], axis = 1)
-        
-    print("step_1_data_cleaning - 3. Suppression de colonnes - OK")
-        
-    # 4. Conversion des colonnes
+    # 2. Conversion des colonnes
 
-        # Variables numériques
-    df_copy["is_fraud"] = df_copy["is_fraud"].astype("uint8")
-    convert_columns_type(df_copy, ["id","city_pop"], "uint32")
-    convert_columns_type(df_copy, ["amt","lat","long","merch_lat","merch_long"], "float32")
+        # id_paiement
+    df_copy["id_paiement"] = df_copy["id_paiement"].astype("string")
+
+        # Colonnes catégorielles
+    colonnes_categorielles = [
+    "id_client", "id_carte", "prenom", "nom", "adresse_domicile",
+    "code_postal_domicile", "commune_domicile", "code_insee_domicile",
+    "departement_domicile", "region_domicile", "id_marchand", "nom_marchand",
+    "categorie_marchand", "id_point_de_vente", "ville_marchand",
+    "pays_marchand", "devise", "canal", "mode_saisie", "id_appareil", "pays_ip",
+    ]
+
+    df_copy = convert_columns_type(df_copy, colonnes_categorielles, "category")
+
+        # Entiers positifs
+    entiers_positifs = [
+        "temps_unix","population_commune"
+    ]
+
+    df_copy = convert_columns_type(df_copy, entiers_positifs, "uint32")
+
+        # Nombres décimaux (float32)
+    entiers_positifs = [
+        "latitude_commune","longitude_commune","latitude_marchand","longitude_marchand"
+    ]
+
+    df_copy = convert_columns_type(df_copy, entiers_positifs, "float32")
+
+        # Nombres décimaux (float64)
+    nombres_decimaux = [
+        "montant_origine","montant_eur"
+    ]
+
+    df_copy = convert_columns_type(df_copy, nombres_decimaux, "float64")
+
+        # Date
+    df_copy["date_naissance"] = pd.to_datetime(df_copy["date_naissance"], errors="raise")
+
+
+    print("step_1_data_cleaning - 2. Conversion des colonnes - OK")
         
-        # Variables date
-    df_copy["dob"] = pd.to_datetime(df_copy["dob"])
-    df_copy["trans_date_trans_time"] = pd.to_datetime(df_copy["trans_date_trans_time"])
-        
-        # Variables catégorielles
-    convert_columns_type(df_copy, ["merchant","category","city","state","job"], "category")
-        
-    print("step_1_data_cleaning - 4. Conversion des colonnes - OK")
-        
-    # 5. Controle minimal de la qualité des données 
+    # 3. Controle minimal de la qualité des données
         # TODO : Mettre en place une méthode de validation des données plus robuste avec Great Expectations
         
-    if (len(list(df_copy.columns)) == 15) & ("is_fraud" in list(df_copy.columns)):
-        print("step_1_data_cleaning - 5. Controle minimal de la qualité des données - 15 colonnes | is_fraud présent : OK")
+    if (len(list(df_copy.columns)) == 35) & ("fraude_confirmee" in list(df_copy.columns)):
+        print("step_1_data_cleaning - 3. Controle minimal de la qualité des données - 35 colonnes | fraude_confirmee présent : OK")
             
     else:
         raise ValueError("ERREUR : Les données ne correspondent pas à ce qui est attendu")
         
-    # 6. Export des données 
+    # 4. Export des données
     
     try:
-        df_copy.to_parquet(f"01_data/02_intermediate_data/{echantillon}DataForEda.parquet")
-        print("step_1_data_cleaning - 6. Export des données - OK")
+        df_copy.to_parquet(f"01_data/02_intermediate_data/{echantillon}PaiementsCarteForEda.parquet")
+        print("step_1_data_cleaning - 4. Export des données - OK")
         
     except FileNotFoundError:
-        raise FileNotFoundError("step_1_data_cleaning - 6. Export des données - Le fichier est introuvable")
+        raise FileNotFoundError("step_1_data_cleaning - 4. Export des données - Le fichier est introuvable")
+
+    # 5. Dataframe exporté
+    print(f"step_1_data_cleaning - 5. Dataframe exporté - {echantillon}PaiementsCarteForEda.parquet")
