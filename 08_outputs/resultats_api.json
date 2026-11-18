@@ -1,0 +1,46 @@
+{
+  "model_version": "Modèle XGBoost - 2.0",
+  "model_nb_probas": 10,
+  "model_probas": [
+    {
+      "id_observation": 1,
+      "model_proba": 1.0800000429153442
+    },
+    {
+      "id_observation": 2,
+      "model_proba": 93.2300033569336
+    },
+    {
+      "id_observation": 3,
+      "model_proba": 1.6200000047683716
+    },
+    {
+      "id_observation": 4,
+      "model_proba": 94.31999969482422
+    },
+    {
+      "id_observation": 5,
+      "model_proba": 1.0499999523162842
+    },
+    {
+      "id_observation": 6,
+      "model_proba": 1.6699999570846558
+    },
+    {
+      "id_observation": 7,
+      "model_proba": 4.579999923706055
+    },
+    {
+      "id_observation": 8,
+      "model_proba": 16.889999389648438
+    },
+    {
+      "id_observation": 9,
+      "model_proba": 1.3600000143051147
+    },
+    {
+      "id_observation": 10,
+      "model_proba": 2.930000066757202
+    }
+  ]
+}

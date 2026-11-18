@@ -1,0 +1,289 @@
+{
+  "source": "Full_metriques_simulation_metier.csv",
+  "exported_at": "2026-11-12T22:29:30.343079+00:00",
+  "periods": [
+    {
+      "key": "2025-01",
+      "label": "Janvier 2025"
+    },
+    {
+      "key": "2025-02",
+      "label": "Février 2025"
+    },
+    {
+      "key": "2025-03",
+      "label": "Mars 2025"
+    },
+    {
+      "key": "2025-04",
+      "label": "Avril 2025"
+    },
+    {
+      "key": "2025-05",
+      "label": "Mai 2025"
+    },
+    {
+      "key": "2025-06",
+      "label": "Juin 2025"
+    },
+    {
+      "key": "average",
+      "label": "Moyenne · janvier–juin 2025"
+    }
+  ],
+  "average_method": "Moyenne arithmétique des six taux mensuels, chaque mois comptant autant.",
+  "results": [
+    {
+      "period": "2025-01",
+      "capacity": 8,
+      "method": "ML",
+      "fraud_on_time": 67.50572082379863,
+      "relevant_cases": 27.84090909090909,
+      "recoverable_amount": 66.53931836230893,
+      "cases": 176
+    },
+    {
+      "period": "2025-01",
+      "capacity": 8,
+      "method": "Regle",
+      "fraud_on_time": 31.80778032036613,
+      "relevant_cases": 10.227272727272728,
+      "recoverable_amount": 47.720294687389575,
+      "cases": 176
+    },
+    {
+      "period": "2025-01",
+      "capacity": 10,
+      "method": "ML",
+      "fraud_on_time": 67.7345537757437,
+      "relevant_cases": 23.181818181818183,
+      "recoverable_amount": 66.55545835799842,
+      "cases": 220
+    },
+    {
+      "period": "2025-01",
+      "capacity": 10,
+      "method": "Regle",
+      "fraud_on_time": 35.24027459954233,
+      "relevant_cases": 9.090909090909092,
+      "recoverable_amount": 50.29025986205748,
+      "cases": 220
+    },
+    {
+      "period": "2025-02",
+      "capacity": 8,
+      "method": "ML",
+      "fraud_on_time": 71.42857142857143,
+      "relevant_cases": 28.125,
+      "recoverable_amount": 77.18680263646864,
+      "cases": 160
+    },
+    {
+      "period": "2025-02",
+      "capacity": 8,
+      "method": "Regle",
+      "fraud_on_time": 38.52040816326531,
+      "relevant_cases": 11.875,
+      "recoverable_amount": 58.11310184592385,
+      "cases": 160
+    },
+    {
+      "period": "2025-02",
+      "capacity": 10,
+      "method": "ML",
+      "fraud_on_time": 76.27551020408163,
+      "relevant_cases": 25.0,
+      "recoverable_amount": 79.89649524636252,
+      "cases": 200
+    },
+    {
+      "period": "2025-02",
+      "capacity": 10,
+      "method": "Regle",
+      "fraud_on_time": 38.775510204081634,
+      "relevant_cases": 9.0,
+      "recoverable_amount": 58.52526362064676,
+      "cases": 200
+    },
+    {
+      "period": "2025-03",
+      "capacity": 8,
+      "method": "ML",
+      "fraud_on_time": 64.1566265060241,
+      "relevant_cases": 20.83333333333333,
+      "recoverable_amount": 66.44222623900009,
+      "cases": 168
+    },
+    {
+      "period": "2025-03",
+      "capacity": 8,
+      "method": "Regle",
+      "fraud_on_time": 26.80722891566265,
+      "relevant_cases": 7.738095238095238,
+      "recoverable_amount": 22.039812852255015,
+      "cases": 168
+    },
+    {
+      "period": "2025-03",
+      "capacity": 10,
+      "method": "ML",
+      "fraud_on_time": 68.37349397590361,
+      "relevant_cases": 19.047619047619047,
+      "recoverable_amount": 71.62062588897466,
+      "cases": 210
+    },
+    {
+      "period": "2025-03",
+      "capacity": 10,
+      "method": "Regle",
+      "fraud_on_time": 32.2289156626506,
+      "relevant_cases": 7.142857142857143,
+      "recoverable_amount": 30.11384973603265,
+      "cases": 210
+    },
+    {
+      "period": "2025-04",
+      "capacity": 8,
+      "method": "ML",
+      "fraud_on_time": 65.65096952908587,
+      "relevant_cases": 25.0,
+      "recoverable_amount": 64.58653233224439,
+      "cases": 168
+    },
+    {
+      "period": "2025-04",
+      "capacity": 8,
+      "method": "Regle",
+      "fraud_on_time": 28.53185595567867,
+      "relevant_cases": 7.142857142857143,
+      "recoverable_amount": 28.64213693204412,
+      "cases": 168
+    },
+    {
+      "period": "2025-04",
+      "capacity": 10,
+      "method": "ML",
+      "fraud_on_time": 66.20498614958449,
+      "relevant_cases": 20.952380952380956,
+      "recoverable_amount": 64.99830338291099,
+      "cases": 210
+    },
+    {
+      "period": "2025-04",
+      "capacity": 10,
+      "method": "Regle",
+      "fraud_on_time": 30.47091412742382,
+      "relevant_cases": 6.666666666666667,
+      "recoverable_amount": 29.443042041384498,
+      "cases": 210
+    },
+    {
+      "period": "2025-05",
+      "capacity": 8,
+      "method": "ML",
+      "fraud_on_time": 66.19385342789599,
+      "relevant_cases": 36.18421052631579,
+      "recoverable_amount": 65.66104518893617,
+      "cases": 152
+    },
+    {
+      "period": "2025-05",
+      "capacity": 8,
+      "method": "Regle",
+      "fraud_on_time": 34.515366430260045,
+      "relevant_cases": 13.81578947368421,
+      "recoverable_amount": 33.59105681460163,
+      "cases": 152
+    },
+    {
+      "period": "2025-05",
+      "capacity": 10,
+      "method": "ML",
+      "fraud_on_time": 66.43026004728132,
+      "relevant_cases": 29.473684210526315,
+      "recoverable_amount": 66.65163001340899,
+      "cases": 190
+    },
+    {
+      "period": "2025-05",
+      "capacity": 10,
+      "method": "Regle",
+      "fraud_on_time": 41.607565011820334,
+      "relevant_cases": 14.210526315789474,
+      "recoverable_amount": 39.09068443663927,
+      "cases": 190
+    },
+    {
+      "period": "2025-06",
+      "capacity": 8,
+      "method": "ML",
+      "fraud_on_time": 71.57894736842105,
+      "relevant_cases": 33.125,
+      "recoverable_amount": 74.44010991774104,
+      "cases": 160
+    },
+    {
+      "period": "2025-06",
+      "capacity": 8,
+      "method": "Regle",
+      "fraud_on_time": 40.26315789473684,
+      "relevant_cases": 14.375,
+      "recoverable_amount": 43.8392501766925,
+      "cases": 160
+    },
+    {
+      "period": "2025-06",
+      "capacity": 10,
+      "method": "ML",
+      "fraud_on_time": 72.89473684210526,
+      "relevant_cases": 27.5,
+      "recoverable_amount": 75.94233723726614,
+      "cases": 200
+    },
+    {
+      "period": "2025-06",
+      "capacity": 10,
+      "method": "Regle",
+      "fraud_on_time": 43.1578947368421,
+      "relevant_cases": 12.5,
+      "recoverable_amount": 46.1139345959034,
+      "cases": 200
+    },
+    {
+      "period": "average",
+      "capacity": 8,
+      "method": "ML",
+      "fraud_on_time": 67.75244818063284,
+      "relevant_cases": 28.518075491759703,
+      "recoverable_amount": 69.14267244611653,
+      "cases": 984
+    },
+    {
+      "period": "average",
+      "capacity": 8,
+      "method": "Regle",
+      "fraud_on_time": 33.40763294666161,
+      "relevant_cases": 10.862335763651553,
+      "recoverable_amount": 38.99094221815111,
+      "cases": 984
+    },
+    {
+      "period": "average",
+      "capacity": 10,
+      "method": "ML",
+      "fraud_on_time": 69.65225683244999,
+      "relevant_cases": 24.192583732057415,
+      "recoverable_amount": 70.94414168782028,
+      "cases": 1230
+    },
+    {
+      "period": "average",
+      "capacity": 10,
+      "method": "Regle",
+      "fraud_on_time": 36.91351239039347,
+      "relevant_cases": 9.768493202703729,
+      "recoverable_amount": 42.262839048777344,
+      "cases": 1230
+    }
+  ]
+}
