@@ -40,17 +40,25 @@ const modalities: Record<string, string> = {
   saisie_en_ligne: "saisie en ligne",
   sans_contact: "sans contact",
 };
+/** Formate un nombre selon la locale française, avec au plus digits décimales. */
 export const number = (value: number, digits = 2) =>
   new Intl.NumberFormat("fr-FR", { maximumFractionDigits: digits }).format(
     value,
   );
+/** Formate un taux déjà exprimé entre 0 et 100, sans le multiplier par 100. */
 export const percentage = (value: number) => `${number(value, 2)} %`;
+/** Formate un montant en euros selon la locale française. */
 export const euros = (value: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
     value,
   );
+/**
+ * Formate une contribution signée, avec jusqu'à quatre décimales.
+ * Les contributions non nulles inférieures à 0,0001 sont signalées comme telles.
+ */
 export const delta = (value: number) =>
   `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value) > 0 && Math.abs(value) < 0.0001 ? "< 0,0001" : number(Math.abs(value), 4)}`;
+/** Formate une date en français en conservant le fuseau UTC. */
 export const utcDate = (value: string) =>
   new Intl.DateTimeFormat("fr-FR", {
     timeZone: "UTC",
@@ -62,6 +70,10 @@ export const utcDate = (value: string) =>
     second: "2-digit",
   }).format(new Date(value));
 
+/**
+ * Traduit un nom de variable, d'habitude historique ou d'indicatrice encodée.
+ * Si aucun libellé n'est défini, remplace les underscores par des espaces.
+ */
 export function featureLabel(name: string): string {
   if (labels[name]) return labels[name];
   const hour = name.match(/^part_client_heure_(\d+)_passe$/);
@@ -95,6 +107,11 @@ export function featureLabel(name: string): string {
   return name.replaceAll("_", " ");
 }
 
+/**
+ * Formate une valeur selon la variable : euros, durée, distance ou pourcentage.
+ * Les parts historiques entre 0 et 1 sont multipliées par 100 pour l'affichage.
+ * Les valeurs nulles ou absentes donnent « Non renseigné ».
+ */
 export function featureValue(name: string, value: unknown): string {
   if (value === null || value === undefined) return "Non renseigné";
   if (typeof value === "boolean") return value ? "Oui" : "Non";

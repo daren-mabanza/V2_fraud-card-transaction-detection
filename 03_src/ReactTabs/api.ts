@@ -5,6 +5,11 @@ import type {
   ShapResponse,
 } from "./types";
 
+/**
+ * Charge un export JSON via le relais Node, sans cache HTTP.
+ * L'appel peut être annulé et expire après 65 secondes ; les erreurs HTTP
+ * ou les réponses vides sont signalées à l'appelant.
+ */
 export async function loadExport<T>(route: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`/api/${route}`, {
     cache: "no-store",
@@ -17,6 +22,11 @@ export async function loadExport<T>(route: string, signal?: AbortSignal): Promis
   return result as T;
 }
 
+/**
+ * Envoie uniquement les features des observations dans le champ data.
+ * Applique le délai de 65 secondes et traduit les erreurs réseau ou API
+ * en messages affichables ; une annulation demandée par l'appelant est propagée.
+ */
 async function post<T>(
   route: string,
   observations: Observation[],
@@ -56,6 +66,12 @@ async function post<T>(
   }
 }
 
+/**
+ * Calcule les probabilités du lot et les associe aux identifiants de paiement.
+ * Vérifie le nombre de résultats, les identifiants positionnels et les valeurs
+ * finies entre 0 et 100, même si l'API renvoie les résultats dans un autre ordre.
+ * @returns Probabilités en pourcentage, indexées par identifiant de paiement.
+ */
 export async function predictBatch(
   observations: Observation[],
 ): Promise<Record<string, number>> {
@@ -89,6 +105,13 @@ export async function predictBatch(
   return predictions;
 }
 
+/**
+ * Charge et vérifie l'explication SHAP d'un paiement.
+ * Contrôle les dix contributions principales, « Autres variables » et l'égalité
+ * référence + contributions = probabilité, avec une tolérance de 0,001 point.
+ * @param expectedProbability Score du tableau en pourcentage, entre 0 et 100.
+ * @param signal Permet d'annuler une sélection devenue obsolète.
+ */
 export async function explainObservation(
   row: Observation,
   expectedProbability: number,
