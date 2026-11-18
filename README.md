@@ -1,4 +1,4 @@
-# FraudLens — détection de fraude bancaire
+# FraudLens — Détection de fraude bancaire
 
 **Prioriser les cartes à investiguer et expliquer les scores de fraude, dans la limite du nombre de dossiers qu’une équipe peut traiter.**
 
@@ -188,28 +188,12 @@ Construction depuis **la racine du dépôt** :
 
 ```bash
 docker build -f 09_app_fastapi/Dockerfile -t fraudlens-api .
-docker build -f 10_app_react/Dockerfile --target plain -t fraudlens-react .
-docker build -f 10_app_react/Dockerfile --target gcp -t fraudlens-react-gcp .
+docker build -f 10_app_react/Dockerfile -t fraudlens-react .
 ```
 
-Deux variantes partagent la même interface : **sans token**, ou **avec un ID token GCP obtenu côté serveur** pour une API Cloud Run protégée. `FRAUD_API_URL` configure l’adresse FastAPI ; le second mode se lance avec `npm run dev:gcp`.
+Une seule image permet deux modes : **sans token** (`FRAUD_AUTH_MODE=none`), ou **avec un ID token GCP obtenu côté serveur** (`FRAUD_AUTH_MODE=gcp`) pour une API Cloud Run protégée. Ces variables se passent à `docker run` avec `-e`. `FRAUD_API_URL` configure l’adresse FastAPI ; en développement local, le second mode se lance avec `npm run dev:gcp`.
 
 Les modèles et les exports sont embarqués dans l’image API. L’image React reste indépendante des données. Voir le [README de l’interface](10_app_react/README.md) pour les variables d’environnement, l’authentification, l’exécution des conteneurs et les volumes.
-
-## Vérifications et limites
-
-Les tests couvrent les exports, le relais API, les erreurs, la cohérence des scores/explications et l’affichage mobile :
-
-```bash
-uv run python -m unittest discover -s 10_app_react/tests -p 'test_*.py'
-cd 10_app_react
-npm test
-npm run build
-```
-
-Les tests navigateur Playwright et leur installation sont détaillés dans le README React. Le test d’inférence réelle est optionnel et nécessite une API démarrée avec ses artefacts (`FRAUD_LIVE_API=1`).
-
-Le périmètre reste celui d’un **prototype sur données synthétiques**. Les scores ne déclenchent aucun blocage bancaire. La récupération financière est simulée, le pipeline actif ne comporte pas de calibrateur supplémentaire, et le calcul des historiques est effectué hors ligne. Un usage réel demanderait une validation sur données bancaires, un suivi de dérive et une alimentation des historiques adaptée aux nouveaux paiements.
 
 ## Licence
 
