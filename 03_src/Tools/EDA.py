@@ -192,8 +192,7 @@ def plot_countplots(df, colonnes, ncols=3, order_by_freq=True,
                      figsize_par_graphique=(5.5, 4.5),
                      titre_general="Répartition des variables catégorielles",
                      top_n=None, horizontal=False):
-    """
-    Trace un ou plusieurs countplots en grille, avec nombre de graphiques
+    """Trace un ou plusieurs countplots en grille, avec nombre de graphiques
     par ligne configurable.
 
     Parameters
@@ -218,7 +217,7 @@ def plot_countplots(df, colonnes, ncols=3, order_by_freq=True,
     titre_general : str
         Titre global de la figure.
     top_n : int ou None
-        Si défini, n'affiche que les N catégories les plus fréquentes.
+        Avec order_by_freq=True, limite l'affichage aux N catégories les plus fréquentes.
     horizontal : bool
         Si True, barres horizontales (utile si labels longs ou nombreuses catégories).
 

@@ -220,7 +220,11 @@ def stratified_sample(
 
 
 def feries_metropole_metier(annee):
-    """Calendrier national général ; la décision de chômer ces jours est configurable."""
+    """Renvoie un ensemble de dates des jours fériés nationaux pour l'année donnée.
+
+    Inclut les huit fêtes fixes et les trois fêtes liées à Pâques.
+    Le calendrier ne comprend pas les particularités régionales.
+    """
     fixes = [(1, 1), (5, 1), (5, 8), (7, 14), (8, 15), (11, 1), (11, 11), (12, 25)]
     jours = {pd.Timestamp(year=annee, month=m, day=j).date() for m, j in fixes}
     paques = easter(annee)
