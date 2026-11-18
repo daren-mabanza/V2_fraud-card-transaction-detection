@@ -1,4 +1,13 @@
 def query():
+    """Renvoie la requête DuckDB qui construit les variables métier et historiques.
+
+    La requête attend une relation ``df_copy`` contenant les paiements nettoyés.
+    Elle calcule notamment les habitudes du client, la vélocité de la carte,
+    les écarts aux médianes et la distance domicile–marchand.
+    Les fenêtres historiques excluent le paiement courant et les autres
+    paiements au même instant. Le calendrier local utilise Europe/Paris.
+    Cette fonction retourne uniquement le SQL, sans l'exécuter.
+    """
 
     requete = """
     WITH base AS (

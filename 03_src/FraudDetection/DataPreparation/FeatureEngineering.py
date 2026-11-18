@@ -10,44 +10,19 @@ from FraudDetection.SQL.Query import query
 # ------------------------------------------------------------------------------------------------------ 
 
 def feature_engineering():
-    """Prépare les variables temporelles et exporte les transactions transformées.
+    """Calcule les variables métier et historiques avec DuckDB, puis les exporte.
 
-    Lit ``11_configs/paths.yaml`` pour récupérer le type d'échantillon dans
-    ``echantillon.type``, puis charge le fichier
-    ``01_data/02_intermediate_data/{echantillon}DataForEda.parquet``.
-
-    Conserve les colonnes utiles, crée ``jour`` et ``heure`` à partir de
-    ``trans_date_trans_time``, puis ordonne les huit colonnes de sortie :
-    ``id``, ``trans_date_trans_time``, ``jour``, ``heure``, ``state``,
-    ``category``, ``amt`` et ``is_fraud``.
-
-    ``jour`` est une variable catégorielle ordonnée de ``Monday`` à ``Sunday``.
-    ``heure`` est une variable catégorielle contenant les heures observées,
-    de 0 à 23. Une date manquante donne un jour et une heure manquants.
-
-    Après un contrôle minimal du nombre de colonnes et de la présence de
-    ``is_fraud``, écrit le résultat dans
-    ``01_data/03_processed_data/{echantillon}DataForEda.parquet``.
-    Les étapes sont signalées dans la sortie standard.
-
-    Returns:
-        None: Les données préparées sont enregistrées au format Parquet.
+    Charge ``{echantillon}PaiementsCarteForEda.parquet`` selon
+    ``11_configs/paths.yaml`` et applique la requête SQL à ``df_copy``.
+    Le résultat doit contenir 104 colonnes, dont ``fraude_confirmee``.
+    Il remplace ``01_data/03_processed_data/{echantillon}PaiementsCarteForModel.parquet``.
+    Les historiques excluent les paiements au même instant et les paiements futurs.
+    Lancer depuis la racine du projet, avec le dossier de sortie existant.
 
     Raises:
-        FileNotFoundError: Si le fichier de configuration ou le fichier
-            de données d'entrée est introuvable.
-        yaml.YAMLError: Si la syntaxe du fichier YAML est invalide.
-        KeyError: Si une clé de configuration ou une colonne requise manque.
-        ValueError: Si une date ne peut pas être interprétée par pandas ou
-            si le contrôle minimal de structure échoue.
-        OSError: Si la lecture ou l'écriture d'un fichier échoue, notamment
-            si le répertoire de sortie n'existe pas.
-
-    Notes:
-        La fonction ne prend aucun argument. Les chemins sont relatifs au
-        répertoire de travail, qui doit être la racine du projet.
-        Le répertoire de sortie doit déjà exister ; un fichier de sortie
-        portant le même nom est remplacé lors de l'export.
+        FileNotFoundError: Si la configuration, les données ou le dossier de sortie manquent.
+        KeyError: Si la configuration ne contient pas les clés attendues.
+        ValueError: Si le contrôle de structure du résultat échoue.
     """
 
     # 0. Import des configurations
