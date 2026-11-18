@@ -15,7 +15,21 @@ AVERAGE_METHOD = "Moyenne arithmétique des taux mensuels, chaque mois comptant 
 
 
 def demo_data(root=ROOT):
-    """Lit les dix paiements exportés ; seuls les champs utiles sont transmis."""
+    """Lit et valide les dix paiements de démonstration, triés chronologiquement.
+
+    Args:
+        root: Racine contenant le Parquet exporté, celle du projet par défaut.
+
+    Returns:
+        Dictionnaire avec la journée locale, le fuseau, la source et les
+        observations : identifiant, date UTC et 71 variables. Les valeurs
+        manquantes deviennent ``None`` ; la cible n'est pas transmise.
+
+    Raises:
+        FileNotFoundError: Si le Parquet est absent.
+        ValueError: Si les paiements ou leurs variables ne sont pas valides.
+        KeyError: Si une colonne requise manque.
+    """
     root = Path(root)
     features = features_selected()
     data = pd.read_parquet(root / TEST_DATA, columns=["id_paiement", "date_paiement_utc", *features])
@@ -36,7 +50,21 @@ def demo_data(root=ROOT):
 
 
 def business_metrics(root=ROOT):
-    """Lit les taux des CSV métier ; seule leur moyenne d'affichage est calculée."""
+    """Relit les exports métier et prépare les taux affichés dans l'interface.
+
+    Args:
+        root: Racine de la configuration et des exports, celle du projet par défaut.
+
+    Returns:
+        Dictionnaire des périodes et résultats pour ML et Regle, à 8 ou
+        10 dossiers par jour. La moyenne donne le même poids à chaque mois ;
+        les nombres de revues sont additionnés. Aucune simulation n'est relancée.
+
+    Raises:
+        FileNotFoundError: Si la configuration ou un export manque.
+        ValueError: Si l'export est vide, incomplet ou contient des taux manquants.
+        KeyError: Si une clé de configuration ou un champ requis manque.
+    """
     root = Path(root)
     config = yaml.safe_load((root / "11_configs/paths.yaml").read_text())
     prefix = config["echantillon"]["type"]

@@ -19,7 +19,12 @@ explainer = joblib.load("06_models/FullXGBoostExplainer_V2.joblib")
 
 
 def observations_dataframe(batch: BatchEntree) -> pd.DataFrame:
-    """Conserve les types et les NaN d'entraînement, même pour une seule ligne."""
+    """Convertit le lot validé en DataFrame conforme aux entrées du pipeline.
+
+    Conserve l'ordre des variables appris au fit. Les cinq colonnes de
+    catégories restent de type objet ; les autres passent en float64.
+    Les valeurs manquantes deviennent des NaN, même pour une seule ligne.
+    """
     observations = pd.DataFrame(
         [observation.model_dump() for observation in batch.data],
         columns=pipeline.feature_names_in_,
@@ -37,11 +42,17 @@ def observations_dataframe(batch: BatchEntree) -> pd.DataFrame:
 
 @app.get("/health")
 def health():
+    """Renvoie le statut de disponibilité de l’API, sans lancer de prédiction."""
     return {"status": "ok"}
 
 
 @app.get("/demo-data")
 def get_demo_data():
+    """Renvoie les paiements de démonstration depuis l'export Parquet.
+
+    Raises:
+        HTTPException: Erreur 503 si l'export manque ou ne respecte pas le format attendu.
+    """
     try:
         return demo_data()
     except FileNotFoundError:
@@ -52,6 +63,11 @@ def get_demo_data():
 
 @app.get("/business-metrics")
 def get_business_metrics():
+    """Renvoie les métriques métier et leurs moyennes depuis les exports existants.
+
+    Raises:
+        HTTPException: Erreur 503 si les exports manquent ou sont incomplets ou invalides.
+    """
     try:
         return business_metrics()
     except FileNotFoundError:
@@ -62,6 +78,12 @@ def get_business_metrics():
 
 @app.post("/batch-predict")
 def predict(batch: BatchEntree) -> BatchSortie:
+    """Calcule les probabilités de fraude d'un lot de 1 à 10 observations validées.
+
+    Les entrées contiennent les 71 variables déjà calculées. Renvoie un
+    ``BatchSortie`` avec les probabilités en pourcentage et des identifiants
+    positionnels commençant à 1, dans l'ordre du lot reçu.
+    """
     observations = observations_dataframe(batch)
     probabilites = pipeline.predict_proba(observations)[:, 1] * 100
 
@@ -77,6 +99,14 @@ def predict(batch: BatchEntree) -> BatchSortie:
 
 @app.post("/shap-explanation")
 def shap_explanation(batch: BatchEntree) -> ShapSortie:
+    """Explique un lot validé avec l'explainer SHAP chargé au démarrage.
+
+    Renvoie, pour chaque observation, la référence, la probabilité finale,
+    les dix contributions de plus forte valeur absolue et leur reste signé
+    sous « Autres variables ». Les contributions portent sur les variables
+    après preprocessing et sont exprimées en points de pourcentage.
+    Le modèle et le preprocessing ne sont pas réentraînés.
+    """
     
     observations = observations_dataframe(batch)
     observations_processed = preprocessing.transform(observations)
