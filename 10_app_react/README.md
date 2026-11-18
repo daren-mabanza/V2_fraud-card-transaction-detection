@@ -93,6 +93,10 @@ Les métriques sont exportées séparément avec `uv run python 04_scripts/step_
 
 Les identifiants restent côté interface. Les scores sont associés à l’ordre initial avant le tri du tableau. Masquer une colonne ne modifie jamais les features envoyées. Les changements d’onglet conservent les scores et l’explication. Une nouvelle sélection annule la demande précédente ; aucune réponse ancienne ne remplace celle de la ligne active.
 
+Les explications SHAP réussies sont conservées en mémoire dans le navigateur, par transaction. Sélectionner à nouveau un paiement déjà expliqué réutilise son résultat sans nouvel appel API. Le cache est vidé après un nouveau calcul réussi des probabilités ou un rechargement de la page. Les erreurs et les requêtes annulées ne sont pas mises en cache.
+
+« Agrandir le graphique » ouvre le waterfall dans une fenêtre dédiée, refermable par le bouton de fermeture ou Échap, sans nouvel appel SHAP. Après le calcul des probabilités, « Exporter en CSV » télécharge les dix paiements dans l’ordre du tableau, avec leurs identifiants, les colonnes affichées et leurs probabilités en %. Les valeurs exportées sont brutes (parts historiques entre 0 et 1, dates en UTC), avec les noms techniques des colonnes. Le fichier utilise UTF-8 avec BOM, le séparateur `;` et la virgule décimale pour les tableurs français ; les valeurs manquantes restent vides.
+
 Le waterfall Plotly utilise les dix principales contributions signées et leur reste sommé dans « Autres variables ». L’échelle renvoyée par l’API est `percentage_points` : référence + contributions = probabilité finale en %. Le frontend vérifie cette égalité et la cohérence avec le score du tableau. Les contributions concernent les variables **après preprocessing**, avec les indicatrices des catégories séparées.
 
 ## Vérification

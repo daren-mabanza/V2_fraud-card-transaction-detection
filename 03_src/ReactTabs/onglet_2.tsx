@@ -8,6 +8,7 @@ import {
   Check,
   CheckCircle2,
   Columns3,
+  Download,
   Eye,
   Info,
   LoaderCircle,
@@ -48,6 +49,7 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
   const [notice, setNotice] = useState("");
   const [visible, setVisible] = useState(new Set(defaultColumns));
   const [columnMenu, setColumnMenu] = useState(false);
+  const [columnHelp, setColumnHelp] = useState(false);
   const [search, setSearch] = useState("");
   const columnMenuRef = useRef<HTMLDivElement>(null);
   const [sort, setSort] = useState<"initial" | "asc" | "desc">("initial");
@@ -56,6 +58,7 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
   const [explaining, setExplaining] = useState(false);
   const [explanationError, setExplanationError] = useState("");
   const explanationRequest = useRef<AbortController | null>(null);
+  const explanationCache = useRef(new Map<string, Explanation>());
   const explanationPanel = useRef<HTMLElement>(null);
   const hasScores = Object.keys(scores).length === observations.length;
   const columns = optionalColumns.filter((name) => visible.has(name));
@@ -72,11 +75,16 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
 
   useEffect(() => {
     function closeMenu(event: MouseEvent) {
-      if (!columnMenuRef.current?.contains(event.target as Node))
+      if (!columnMenuRef.current?.contains(event.target as Node)) {
         setColumnMenu(false);
+        setColumnHelp(false);
+      }
     }
     function escape(event: KeyboardEvent) {
-      if (event.key === "Escape") setColumnMenu(false);
+      if (event.key === "Escape") {
+        setColumnMenu(false);
+        setColumnHelp(false);
+      }
     }
     document.addEventListener("mousedown", closeMenu);
     document.addEventListener("keydown", escape);
@@ -94,7 +102,14 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
     setScoreError("");
     setNotice("");
     try {
-      setScores(await predictBatch(observations));
+      const nextScores = await predictBatch(observations);
+      explanationRequest.current?.abort();
+      explanationCache.current.clear();
+      setSelected(null);
+      setExplanation(null);
+      setExplanationError("");
+      setExplaining(false);
+      setScores(nextScores);
     } catch (error) {
       setScoreError(
         error instanceof Error ? error.message : "Le calcul n’a pas abouti.",
@@ -112,11 +127,17 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
     }
     setNotice("");
     explanationRequest.current?.abort();
+    setSelected(row);
+    setExplanationError("");
+    const cached = explanationCache.current.get(row.id);
+    if (cached) {
+      setExplanation(cached);
+      setExplaining(false);
+      return;
+    }
     const request = new AbortController();
     explanationRequest.current = request;
-    setSelected(row);
     setExplanation(null);
-    setExplanationError("");
     setExplaining(true);
     try {
       const result = await explainObservation(
@@ -124,7 +145,10 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
         scores[row.id],
         request.signal,
       );
-      if (!request.signal.aborted) setExplanation(result);
+      if (!request.signal.aborted) {
+        explanationCache.current.set(row.id, result);
+        setExplanation(result);
+      }
     } catch (error) {
       if (!request.signal.aborted)
         setExplanationError(
@@ -144,6 +168,34 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
       else next.add(name);
       return next;
     });
+  }
+
+  function exportCsv() {
+    if (!hasScores || calculating) return;
+    const cell = (value: unknown) => {
+      let text = value == null ? "" : typeof value === "number"
+        ? String(value).replace(".", ",") : String(value);
+      if (typeof value === "string" && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+      return `"${text.replaceAll('"', '""')}"`;
+    };
+    const records = [
+      ["transaction", "id_paiement", ...columns, "probabilite_fraude_pct"],
+      ...rows.map(row => [
+        `TX-${String(observations.indexOf(row) + 1).padStart(3, "0")}`,
+        row.id,
+        ...columns.map(name => name === "date_utc" ? row.date_utc : row.features[name]),
+        scores[row.id],
+      ]),
+    ];
+    const csv = "\uFEFF" + records.map(record => record.map(cell).join(";")).join("\r\n") + "\r\n";
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `fraudlens-transactions-${dataset.day}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   return (
@@ -189,11 +241,33 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
                 className={`button button-secondary ${columnMenu ? "is-open" : ""}`}
                 aria-expanded={columnMenu}
                 aria-controls="column-menu"
-                onClick={() => setColumnMenu(!columnMenu)}
+                onClick={() => {
+                  setColumnMenu(!columnMenu);
+                  setColumnHelp(false);
+                }}
               >
                 <Columns3 size={16} /> Colonnes{" "}
                 <span className="count-badge">{visible.size + 1}</span>
               </button>
+              <button
+                className="icon-button"
+                aria-label="Aide sur les colonnes du tableau"
+                aria-expanded={columnHelp}
+                aria-controls="column-help"
+                onClick={() => {
+                  setColumnHelp(!columnHelp);
+                  setColumnMenu(false);
+                }}
+              >
+                <Info size={16} aria-hidden="true" />
+              </button>
+              {columnHelp && (
+                <p className="column-help-text" id="column-help">
+                  Cliquez sur « Colonnes » pour afficher d’autres variables du
+                  paiement. Actions reste visible pendant le défilement ; après
+                  le calcul, la probabilité de fraude reste visible aussi.
+                </p>
+              )}
               {columnMenu && (
                 <div className="column-menu" id="column-menu">
                   <div className="column-menu-heading">
@@ -250,6 +324,14 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
                 <ScanLine size={17} />
               )}
               {calculating ? "Calcul en cours…" : "Calculer les probabilités"}
+            </button>
+            <button
+              className="button button-secondary"
+              onClick={exportCsv}
+              disabled={!hasScores || calculating}
+              title={!hasScores ? "Calculez d’abord les probabilités pour exporter les résultats." : "Exporter les colonnes affichées et les probabilités."}
+            >
+              <Download size={16} /> Exporter en CSV
             </button>
           </div>
         </div>
@@ -308,6 +390,7 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
                 {hasScores && (
                   <th
                     scope="col"
+                    className="probability-cell"
                     aria-sort={
                       sort === "initial"
                         ? "none"
@@ -371,7 +454,7 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
                     </td>
                   ))}
                   {hasScores && (
-                    <td className="probability-value">
+                    <td className="probability-value probability-cell">
                       <strong>{percentage(scores[row.id])}</strong>
                       <span className="probability-track" aria-hidden="true">
                         <span style={{ width: `${scores[row.id]}%` }} />

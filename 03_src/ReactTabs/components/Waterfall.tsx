@@ -1,16 +1,33 @@
 import { useEffect, useRef, useState } from "react";
+import { Maximize2, X } from "lucide-react";
 import type { Data, Layout } from "plotly.js";
 import type { Explanation } from "../types";
 import { delta, featureLabel, featureValue, percentage } from "../format";
 
 export default function Waterfall({
   explanation,
+  enlarged = false,
 }: {
   explanation: Explanation;
+  enlarged?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const dialog = dialogRef.current!;
+    dialog.showModal();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      dialog.close();
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [expanded]);
 
   useEffect(() => {
     const element = container.current!;
@@ -23,6 +40,7 @@ export default function Waterfall({
       .then(async (module) => {
         if (disposed) return;
         plotly = module.default;
+        const compact = enlarged && window.innerWidth < 600;
         const features = explanation.features;
         const labels = [
           "Référence du modèle",
@@ -32,7 +50,9 @@ export default function Waterfall({
         const trace = {
           type: "waterfall",
           orientation: "h",
-          y: labels,
+          y: compact
+            ? labels.map(label => label.replace(/(.{1,21})(?:\s+|$)/g, "$1<br>").replace(/<br>$/, ""))
+            : labels,
           x: [explanation.base_value, ...features.map((f) => f.shap_value), 0],
           measure: ["absolute", ...features.map(() => "relative"), "total"],
           text: [
@@ -41,7 +61,7 @@ export default function Waterfall({
             percentage(explanation.prediction),
           ],
           textposition: "outside",
-          textfont: { size: 11, color: "#334155" },
+          textfont: { size: compact ? 9 : 11, color: "#334155" },
           cliponaxis: false,
           customdata: [
             `Point de départ : ${percentage(explanation.base_value)}`,
@@ -59,14 +79,14 @@ export default function Waterfall({
         } as Data;
         const layout: Partial<Layout> = {
           autosize: true,
-          height: 505,
-          margin: { l: 225, r: 90, t: 20, b: 65 },
+          height: enlarged ? Math.max(540, Math.min(800, window.innerHeight - 180)) : 505,
+          margin: { l: compact ? 125 : 225, r: compact ? 45 : 90, t: 20, b: 65 },
           paper_bgcolor: "transparent",
           plot_bgcolor: "transparent",
           showlegend: false,
           font: {
             family: "Inter, system-ui, sans-serif",
-            size: 11,
+            size: compact ? 10 : 11,
             color: "#475569",
           },
           xaxis: {
@@ -106,10 +126,37 @@ export default function Waterfall({
       observer?.disconnect();
       plotly?.purge(element);
     };
-  }, [explanation]);
+  }, [explanation, enlarged]);
 
   return (
-    <div className="waterfall-wrap">
+    <div className={`waterfall-wrap${enlarged ? " waterfall-enlarged" : ""}`}>
+      {!enlarged && (
+        <>
+          <div className="chart-tools">
+            <button className="button button-secondary" onClick={() => setExpanded(true)}>
+              <Maximize2 size={15} /> Agrandir le graphique
+            </button>
+          </div>
+          <dialog
+            ref={dialogRef}
+            className="shap-dialog"
+            aria-label="Graphique SHAP agrandi"
+            onCancel={event => { event.preventDefault(); setExpanded(false); }}
+            onClose={() => setExpanded(false)}
+          >
+            <div className="shap-dialog-heading">
+              <div>
+                <h2>Contributions à la probabilité de fraude</h2>
+                <p>10 principales contributions + autres variables · Probabilité : {percentage(explanation.prediction)}</p>
+              </div>
+              <button className="icon-button" aria-label="Fermer le graphique agrandi" onClick={() => setExpanded(false)}>
+                <X size={22} />
+              </button>
+            </div>
+            {expanded && <Waterfall explanation={explanation} enlarged />}
+          </dialog>
+        </>
+      )}
       {loading && (
         <p className="chart-notice" role="status">
           Construction du graphique…

@@ -605,7 +605,7 @@ svg {
   max-width: 1000px;
 }
 .methodology {
-  margin: 23px 0 0;
+  margin: 0 0 16px;
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -722,6 +722,8 @@ svg {
 }
 .table-controls {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 9px;
 }
 .table-status {
@@ -751,6 +753,24 @@ svg {
 }
 .column-control {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.column-help-text {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 21;
+  width: min(280px, calc(100vw - 65px));
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px #0f274d20;
+  color: #52617a;
+  font-size: 11px;
+  line-height: 1.6;
 }
 .column-menu {
   position: absolute;
@@ -838,6 +858,7 @@ svg {
   scrollbar-color: #d4deee #f8faff;
 }
 .transactions-table {
+  --actions-width: 124px;
   border-collapse: separate;
   border-spacing: 0;
   width: 100%;
@@ -897,14 +918,27 @@ svg {
 .transactions-table td:nth-child(2) {
   font-variant-numeric: tabular-nums;
 }
-.transactions-table .action-cell {
+.transactions-table th.action-cell,
+.transactions-table td.action-cell {
   position: sticky;
   right: 0;
   z-index: 2;
   border-left: 1px solid #edf1f7;
   box-shadow: -6px 0 10px -10px #0f274d70;
   text-align: center;
-  min-width: 116px;
+  width: var(--actions-width);
+  min-width: var(--actions-width);
+  max-width: var(--actions-width);
+  padding-left: 12px;
+  padding-right: 12px;
+}
+.transactions-table .probability-cell {
+  position: sticky;
+  right: var(--actions-width);
+  z-index: 2;
+  min-width: 180px;
+  border-left: 1px solid #edf1f7;
+  box-shadow: -6px 0 10px -10px #0f274d70;
 }
 .transactions-table thead .action-cell {
   background: #f7f9fd;
@@ -1123,6 +1157,48 @@ svg {
   width: 100%;
   min-width: 570px;
   min-height: 505px;
+}
+.chart-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin: 12px 0 4px;
+}
+.chart-tools .button {
+  padding: 7px 10px;
+  font-size: 10px;
+}
+.shap-dialog {
+  width: min(1200px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--navy);
+  box-shadow: 0 20px 80px #0f274d40;
+  overflow: auto;
+}
+.shap-dialog::backdrop {
+  background: #0f274db3;
+}
+.shap-dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.shap-dialog-heading h2 {
+  font-size: 16px;
+}
+.shap-dialog-heading p {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.waterfall-enlarged .waterfall {
+  min-width: 0;
 }
 .chart-notice {
   position: absolute;
@@ -1664,14 +1740,17 @@ svg {
   }
 }
 
-.github-link {
+.github-link,
+.social-link {
   text-decoration: none;
 }
 @media (max-width: 520px) {
-  .github-link {
+  .github-link,
+  .social-link {
     padding: 8px;
   }
-  .github-link > span {
+  .github-link > span,
+  .social-link > span {
     display: none;
   }
 }

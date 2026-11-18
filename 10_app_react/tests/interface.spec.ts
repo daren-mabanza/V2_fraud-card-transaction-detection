@@ -55,6 +55,82 @@ async function openDemo(page: Page) {
   await page.getByRole("tab", { name: "Démonstration" }).click();
 }
 
+test("export CSV : colonnes affichées, tri et probabilités conservés", async ({ page }) => {
+  await mockPredictions(page);
+  const customData = structuredClone(dataset);
+  customData.observations[9].features.categorie_marchand = 'Commerce; "test"\nAutre';
+  await page.route("**/api/demo-data", route => route.fulfill({ json: customData }));
+  await openDemo(page);
+  const exportButton = page.getByRole("button", { name: "Exporter en CSV" });
+  await expect(exportButton).toBeDisabled();
+  const toolbar = page.locator(".table-controls");
+  await expect(toolbar.getByRole("button")).toHaveText([
+    /Colonnes/, "", "Calculer les probabilités", "Exporter en CSV",
+  ]);
+  await page.getByRole("button", { name: /Colonnes/ }).click();
+  await page.getByRole("checkbox", { name: "Canal", exact: true }).uncheck();
+  await page.getByPlaceholder("Rechercher une variable…").fill("pays_ip");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Fermer le menu des colonnes" }).click();
+  await page.getByRole("button", { name: "Calculer les probabilités" }).click();
+  await expect(exportButton).toBeEnabled();
+  await page.getByRole("button", { name: "Probabilité de fraude", exact: true }).click();
+  const downloadPromise = page.waitForEvent("download");
+  await exportButton.click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("fraudlens-transactions-2025-04-21.csv");
+  const stream = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
+  const csv = Buffer.concat(chunks).toString("utf8");
+  expect(csv.startsWith("\uFEFF")).toBe(true);
+  const lines = csv.slice(1).trimEnd().split("\r\n");
+  expect(lines).toHaveLength(11);
+  expect(lines[0]).toBe('"transaction";"id_paiement";"montant_eur";"mode_saisie";"categorie_marchand";"date_utc";"pays_ip";"probabilite_fraude_pct"');
+  expect(lines[1]).toContain(`"TX-010";"${rows[9].id}"`);
+  expect(lines[1]).toContain('"Commerce; ""test""\nAutre"');
+  expect(lines[1]).toContain(`"${String(rows[9].features.montant_eur).replace(".", ",")}"`);
+  expect(lines[1]).toMatch(/;"74"$/);
+  expect(lines[10]).toContain(`"TX-001";"${rows[0].id}"`);
+  expect(lines[10]).toMatch(/;"";"2"$/);
+});
+
+test("graphique SHAP agrandi : même résultat, fermeture et retour au bouton", async ({ page }) => {
+  let calls = 0;
+  await mockPredictions(page);
+  await page.route("**/api/shap-explanation", route => {
+    calls++;
+    return route.fulfill({ json: explanation(scoreFor(0)) });
+  });
+  await openDemo(page);
+  await page.getByRole("button", { name: "Calculer les probabilités" }).click();
+  await expect(page.locator(".probability-value")).toHaveCount(10);
+  await page.getByRole("button", { name: "Expliquer la transaction TX-001", exact: true }).click();
+  await expect(page.locator(".waterfall .main-svg").first()).toBeVisible();
+  const enlarge = page.getByRole("button", { name: "Agrandir le graphique" });
+  await enlarge.click();
+  const dialog = page.getByRole("dialog", { name: "Graphique SHAP agrandi" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator(".waterfall .main-svg").first()).toBeVisible();
+  const plot = await dialog.locator(".waterfall").evaluate((element: any) => element.data[0].x);
+  expect(plot.slice(0, -1).reduce((sum: number, value: number) => sum + value, 0)).toBeCloseTo(scoreFor(0), 5);
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await expect(enlarge).toBeFocused();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await enlarge.click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator(".waterfall .main-svg").first()).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect(await dialog.locator(".waterfall-wrap").evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({ path: "test-results/shap-enlarged-mobile.png", fullPage: true });
+  await dialog.getByRole("button", { name: "Fermer le graphique agrandi" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(enlarge).toBeFocused();
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
+  expect(calls).toBe(1);
+});
+
 test("parcours, colonnes, tri, waterfall et conservation entre onglets", async ({
   page,
 }) => {
@@ -145,6 +221,93 @@ test("parcours, colonnes, tri, waterfall et conservation entre onglets", async (
   expect(errors).toEqual([]);
 });
 
+test("explications en cache : aucun nouvel appel avant un recalcul des probabilités", async ({ page }) => {
+  const calls: number[] = [];
+  await mockPredictions(page);
+  await page.route("**/api/shap-explanation", async route => {
+    const features = route.request().postDataJSON().data[0];
+    const index = rows.findIndex(row => row.features.montant_eur === features.montant_eur);
+    calls.push(index);
+    await route.fulfill({ json: explanation(scoreFor(index)) });
+  });
+  await openDemo(page);
+  await page.getByRole("button", { name: "Calculer les probabilités" }).click();
+  await expect(page.locator(".probability-value")).toHaveCount(10);
+
+  const explainFirst = page.getByRole("button", { name: "Expliquer la transaction TX-001", exact: true });
+  const explainSecond = page.getByRole("button", { name: "Expliquer la transaction TX-002", exact: true });
+  await explainFirst.click();
+  await expect(page.locator(".waterfall .main-svg").first()).toBeVisible();
+  await explainFirst.click();
+  await expect(page.getByRole("region", { name: "Explication SHAP" })).toHaveAttribute("aria-busy", "false");
+  expect(calls).toEqual([0]);
+
+  await explainSecond.click();
+  await expect(page.locator(".waterfall .main-svg").first()).toBeVisible();
+  await page.getByRole("tab", { name: "Présentation du projet" }).click();
+  await page.getByRole("tab", { name: "Démonstration" }).click();
+  await explainFirst.click();
+  await expect(page.locator(".selected-score strong")).toHaveText("2 %");
+  await expect(page.locator(".waterfall .main-svg").first()).toBeVisible();
+  expect(calls).toEqual([0, 1]);
+
+  await page.getByRole("button", { name: "Calculer les probabilités" }).click();
+  await expect(page.getByRole("heading", { name: "Un score, des explications." })).toBeVisible();
+  await explainFirst.click();
+  await expect(page.locator(".waterfall .main-svg").first()).toBeVisible();
+  expect(calls).toEqual([0, 1, 0]);
+});
+
+test("cache SHAP : les erreurs et appels annulés restent réessayables", async ({ page }) => {
+  const calls = [0, 0];
+  let releasePending!: () => void;
+  const pending = new Promise<void>(resolve => { releasePending = resolve; });
+  let finishPending!: () => void;
+  const finished = new Promise<void>(resolve => { finishPending = resolve; });
+  await mockPredictions(page);
+  await page.route("**/api/shap-explanation", async route => {
+    const features = route.request().postDataJSON().data[0];
+    const index = rows.findIndex(row => row.features.montant_eur === features.montant_eur);
+    calls[index]++;
+    if (index === 0 && calls[index] === 1) {
+      await route.fulfill({ status: 503, json: { detail: "Explication temporairement indisponible." } });
+      return;
+    }
+    if (index === 1 && calls[index] === 1) {
+      await pending;
+      await route.fulfill({ json: explanation(scoreFor(index)) }).catch(() => {});
+      finishPending();
+      return;
+    }
+    await route.fulfill({ json: explanation(scoreFor(index)) });
+  });
+  await openDemo(page);
+  await page.getByRole("button", { name: "Calculer les probabilités" }).click();
+  await expect(page.locator(".probability-value")).toHaveCount(10);
+  const explainFirst = page.getByRole("button", { name: "Expliquer la transaction TX-001", exact: true });
+  const explainSecond = page.getByRole("button", { name: "Expliquer la transaction TX-002", exact: true });
+  await explainFirst.click();
+  await expect(page.getByText("Explication temporairement indisponible.")).toBeVisible();
+  await page.getByRole("button", { name: "Réessayer", exact: true }).click();
+  await expect(page.locator(".waterfall .main-svg").first()).toBeVisible();
+
+  await explainSecond.click();
+  await expect(page.getByText("Calcul des contributions SHAP…")).toBeVisible();
+  await expect.poll(() => calls[1]).toBe(1);
+  await explainFirst.click();
+  await expect(page.locator(".waterfall .main-svg").first()).toBeVisible();
+  releasePending();
+  await finished;
+  await expect(page.locator(".selected-score strong")).toHaveText("2 %");
+  await expect(page.getByRole("region", { name: "Explication SHAP" })).toHaveAttribute("aria-busy", "false");
+  expect(calls).toEqual([2, 1]);
+
+  await explainSecond.click();
+  await expect(page.locator(".waterfall .main-svg").first()).toBeVisible();
+  await expect(page.locator(".selected-score strong")).toHaveText("10 %");
+  expect(calls).toEqual([2, 2]);
+});
+
 test("seule la dernière transaction sélectionnée conserve son explication", async ({
   page,
 }) => {
@@ -217,10 +380,30 @@ test("erreur de calcul : message, réessai et conservation des résultats valide
   await expect(page.locator(".probability-value")).toHaveCount(10);
 });
 
-test("petit écran : tableau défilable et colonne Actions fixe", async ({
+test("aide sur les colonnes : affichage, clavier et sélection de variables", async ({ page }) => {
+  await openDemo(page);
+  const help = page.getByRole("button", { name: "Aide sur les colonnes du tableau" });
+  await help.focus();
+  await page.keyboard.press("Enter");
+  await expect(help).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#column-help")).toContainText("afficher d’autres variables");
+  await page.keyboard.press("Escape");
+  await expect(help).toHaveAttribute("aria-expanded", "false");
+  await help.click();
+  await page.getByRole("button", { name: /Colonnes/ }).click();
+  await expect(page.locator("#column-help")).toHaveCount(0);
+  await page.getByPlaceholder("Rechercher une variable…").fill("pays_ip");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Fermer le menu des colonnes" }).click();
+  await expect(page.locator('thead th[title="pays_ip"]')).toBeVisible();
+});
+
+for (const width of [390, 1440]) {
+test(`tableau à ${width}px : colonnes Actions et Probabilité fixes`, async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width, height: 844 });
+  await mockPredictions(page);
   await openDemo(page);
   const action = page.getByRole("button", {
     name: "Expliquer la transaction TX-001",
@@ -234,13 +417,32 @@ test("petit écran : tableau défilable et colonne Actions fixe", async ({
   await expect(action).toBeInViewport();
   const movedBox = await action.boundingBox();
   expect(Math.abs(box!.x - movedBox!.x)).toBeLessThan(2);
+  await expect(page.locator("thead .probability-cell")).toHaveCount(0);
+  await page.getByRole("button", { name: "Calculer les probabilités" }).click();
+  await expect(page.locator("tbody .probability-cell")).toHaveCount(10);
+  const pinned = page.locator("thead .probability-cell, thead .action-cell, tbody tr:first-child .probability-cell, tbody tr:first-child .action-cell");
+  const positions = await pinned.evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().x));
+  for (const fraction of [0, 0.5, 1]) {
+    await page.locator(".table-scroll").evaluate((element, fraction) => {
+      element.scrollLeft = fraction * (element.scrollWidth - element.clientWidth);
+    }, fraction);
+    for (const [index, cell] of (await pinned.all()).entries()) {
+      await expect(cell).toBeInViewport();
+      const position = await cell.boundingBox();
+      expect(Math.abs(position!.x - positions[index])).toBeLessThan(2);
+    }
+    const probability = await page.locator("tbody .probability-cell").first().boundingBox();
+    const actionCell = await page.locator("tbody .action-cell").first().boundingBox();
+    expect(probability!.x + probability!.width).toBeLessThanOrEqual(actionCell!.x + 1);
+  }
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  await page.screenshot({ path: "test-results/mobile.png", fullPage: true });
+  await page.screenshot({ path: `test-results/pinned-columns-${width}.png`, fullPage: true });
 });
+}
 
 test("FastAPI réel : chaque transaction est explicable seule, dont TX-007", async ({
   page,
@@ -318,6 +520,10 @@ test("lien GitHub, six mois hors entraînement et moyenne mensuelle", async ({
   const github = page.getByRole("link", {
     name: "Voir le projet sur GitHub (nouvel onglet)",
   });
+  const linkedin = page.getByRole("link", { name: "Voir le profil LinkedIn de Daren Mabanza (nouvel onglet)" });
+  await expect(linkedin).toHaveAttribute("href", "https://www.linkedin.com/in/daren-mabanza-53b9321b2/");
+  await expect(linkedin).toHaveAttribute("target", "_blank");
+  await expect(linkedin.locator("svg")).toBeVisible();
   await expect(github).toHaveAttribute(
     "href",
     "https://github.com/daren-mabanza/V2_fraud-card-transaction-detection",

@@ -76,41 +76,45 @@ export default function Presentation({ openDemo, metrics }: { openDemo: () => vo
             </span>
             <div>
               <span className="overline">LE DÉFI MÉTIER</span>
-              <h2>Les bons dossiers, en priorité.</h2>
+              <h2>Quelles cartes examiner en priorité ?</h2>
             </div>
           </div>
           <p>
-            Une capacité limitée à{" "}
-            <strong>8 ou 10 dossiers par jour ouvré</strong>. Chaque revue doit
-            compter.
+            Les analystes peuvent traiter{" "}
+            <strong>8 ou 10 dossiers par jour ouvré</strong>. Le modèle les aide
+            à sélectionner les cartes à investiguer en premier.
           </p>
           <div className="workflow-step">
             <span>01</span>
             <div>
-              <strong>Scorer les paiements</strong>
-              <p>Estimer leur probabilité de fraude avec XGBoost.</p>
+              <strong>Évaluer chaque paiement</strong>
+              <p>Estimer sa probabilité de fraude avec XGBoost.</p>
             </div>
           </div>
           <div className="workflow-step">
             <span>02</span>
             <div>
-              <strong>Prioriser les cartes</strong>
+              <strong>Classer les cartes à examiner</strong>
               <p>
-                Somme des probabilités, nombre de paiements, puis montant total.
+                Additionner les probabilités de leurs paiements en attente. Les
+                cartes au score cumulé le plus élevé passent en premier.
               </p>
             </div>
           </div>
           <div className="workflow-step">
             <span>03</span>
             <div>
-              <strong>Éclairer l’investigation</strong>
-              <p>Visualiser les facteurs qui influencent chaque score.</p>
+              <strong>Comprendre les scores</strong>
+              <p>
+                Afficher les facteurs qui augmentent ou diminuent la probabilité
+                de fraude d’un paiement.
+              </p>
             </div>
           </div>
           <div className="workflow-foot">
             <CreditCard size={16} />
             <span>
-              Un dossier = une carte · Tous les paiements sont éligibles
+              Un dossier = une carte et ses paiements à examiner.
             </span>
           </div>
         </div>
@@ -190,51 +194,6 @@ export default function Presentation({ openDemo, metrics }: { openDemo: () => vo
               <i className="legend-rule" /> Règles métier
             </span>
           </div>
-        </div>
-        <div className="metrics-grid">
-          {criteria.map((criterion) => {
-            const gain = ml[criterion.key] - baseline[criterion.key];
-            return (
-              <article className="metric-card" key={criterion.key}>
-                <h3>{criterion.title}</h3>
-                <div className="metric-score">
-                  {percentage(ml[criterion.key])}
-                  <span className="gain">
-                    <TrendingUp size={13} /> +{number(gain, 1)} pts
-                  </span>
-                </div>
-                <div className="comparison-row">
-                  <span>XGBoost</span>
-                  <strong>{percentage(ml[criterion.key])}</strong>
-                </div>
-                <div className="comparison-track">
-                  <div style={{ width: `${ml[criterion.key]}%` }} />
-                </div>
-                <div className="comparison-row muted">
-                  <span>Règles métier</span>
-                  <strong>{percentage(baseline[criterion.key])}</strong>
-                </div>
-                <div className="comparison-track rule">
-                  <div style={{ width: `${baseline[criterion.key]}%` }} />
-                </div>
-                <p>{criterion.description}</p>
-              </article>
-            );
-          })}
-        </div>
-        <div className="source-note">
-          <Info size={15} />
-          <p>
-            Résultats issus des exports métier du{" "}
-            {new Intl.DateTimeFormat("fr-FR", {
-              dateStyle: "long",
-              timeZone: "UTC",
-            }).format(new Date(metrics.exported_at))}
-            , sur {number(ml.cases, 0)} revues par méthode. Le montant
-            récupérable est une estimation simulée, pas une récupération
-            constatée.
-            {period === "average" && <> {metrics.average_method}</>}
-          </p>
         </div>
         <details className="methodology">
           <summary>Comprendre les données et la méthode</summary>
@@ -335,6 +294,51 @@ export default function Presentation({ openDemo, metrics }: { openDemo: () => vo
             </div>
           </div>
         </details>
+        <div className="metrics-grid">
+          {criteria.map((criterion) => {
+            const gain = ml[criterion.key] - baseline[criterion.key];
+            return (
+              <article className="metric-card" key={criterion.key}>
+                <h3>{criterion.title}</h3>
+                <div className="metric-score">
+                  {percentage(ml[criterion.key])}
+                  <span className="gain">
+                    <TrendingUp size={13} /> +{number(gain, 1)} pts
+                  </span>
+                </div>
+                <div className="comparison-row">
+                  <span>XGBoost</span>
+                  <strong>{percentage(ml[criterion.key])}</strong>
+                </div>
+                <div className="comparison-track">
+                  <div style={{ width: `${ml[criterion.key]}%` }} />
+                </div>
+                <div className="comparison-row muted">
+                  <span>Règles métier</span>
+                  <strong>{percentage(baseline[criterion.key])}</strong>
+                </div>
+                <div className="comparison-track rule">
+                  <div style={{ width: `${baseline[criterion.key]}%` }} />
+                </div>
+                <p>{criterion.description}</p>
+              </article>
+            );
+          })}
+        </div>
+        <div className="source-note">
+          <Info size={15} />
+          <p>
+            Résultats issus des exports métier du{" "}
+            {new Intl.DateTimeFormat("fr-FR", {
+              dateStyle: "long",
+              timeZone: "UTC",
+            }).format(new Date(metrics.exported_at))}
+            , sur {number(ml.cases, 0)} revues par méthode. Le montant
+            récupérable est une estimation simulée, pas une récupération
+            constatée.
+            {period === "average" && <> {metrics.average_method}</>}
+          </p>
+        </div>
       </section>
       <section className="demo-invitation">
         <span className="icon-tile">
