@@ -3,20 +3,17 @@
 import yaml
 import joblib
 
-import numpy as np
 import pandas as pd
 
 from time import perf_counter
 
 from FraudDetection.DataModelling.ModellingParameters import (
-    risk_level_encoder, one_hot_encoder, custom_isolation_forest,
-    xgboost, threshold_cost_optimizer
-)
-
-from FraudDetection.DataModelling.ModellingTools import (
-    display_roc_auc_score, display_precision_score,
-    display_recall_score, display_log_loss
-)
+    features_selected,
+    one_hot_encoding,
+    numeriques_sans_nan,
+    custom_isolation_forest,
+    xgboost,
+    )
 
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer, make_column_selector
@@ -85,7 +82,7 @@ def modelling():
     
     # 1. Import des données 
     try:
-        df = pd.read_parquet(f"01_data/03_processed_data/{echantillon}DataForModel.parquet")
+        df = pd.read_parquet(f"01_data/03_processed_data/{echantillon}PaiementsCarteForModel.parquet")
         df_copy = df.copy()
         print("step_3_modelling - 1. Import des données - OK")
         
@@ -94,202 +91,83 @@ def modelling():
     
     
     
-    # 2. Découpage chronologique et construction des échantillons (Train - Validation - Test)
-        # Train : 2019
-        # Validation : janvier–septembre 2020
-        # Test : octobre–décembre 2020
+    # 2. Construction de la periode d'entrainement
+        # Base d'entrainement : 2023-12-31 | 2025-01-01
         
-    df_copy["trans_date_trans_time"] = pd.to_datetime(df_copy["trans_date_trans_time"], errors="raise")
-    df_copy = df_copy.sort_values("trans_date_trans_time", kind="stable")
-    
-    masque_train = df_copy["trans_date_trans_time"].between("2019-01-01", "2020-01-01", inclusive="left")
-    masque_validation = df_copy["trans_date_trans_time"].between("2020-01-01", "2020-10-01", inclusive="left")
-    masque_test = df_copy["trans_date_trans_time"].between("2020-10-01", "2021-01-01", inclusive="left")
-    
-    df_train = df_copy.loc[masque_train].copy()
-    df_validation = df_copy.loc[masque_validation].copy()
-    df_test = df_copy.loc[masque_test].copy()
-    
-    colonnes_entree = ["amt", "heure", "jour", "category", "state"]
+    df_copy["date_paiement_utc"] = pd.to_datetime(df_copy["date_paiement_utc"], utc=True, errors="raise")
 
-    X_train = df_train[colonnes_entree].copy()
-    y_train = df_train["is_fraud"].copy()
+    df_train = df_copy[df_copy["date_paiement_utc"].between(pd.Timestamp("2023-12-31", tz="UTC"), pd.Timestamp("2025-01-01", tz="UTC"), inclusive="left")]
 
-    X_validation = df_validation[colonnes_entree].copy()
-    y_validation = df_validation["is_fraud"].copy()
+    print("step_3_modelling - 2. Construction de la periode d'entrainement - OK")
 
-    X_test = df_test[colonnes_entree].copy()
-    y_test = df_test["is_fraud"].copy()
+    # 3. Selection des variables d'interet
+
+    X_train = df_train[features_selected()].copy()
+    y_train = df_train["fraude_confirmee"].copy()
     
-    print("step_3_modelling - 3. Découpage chronologique et construction des échantillons - OK")
-    
-    
+    print("step_3_modelling - 3. Selection des variables d'interet - OK")
     
     # 4. Controle minimal de la qualité des données 
         # TODO : Mettre en place une méthode de validation des données plus robuste avec Great Expectations
         
-    if (len(list(X_train.columns)) == 5) & (sorted(colonnes_entree) == sorted(list(X_train.columns))):
-        print("step_3_modelling - 4. Controle minimal de la qualité des données - 5 features : OK")
+    if (len(list(X_train.columns)) == 71) & (sorted(features_selected()) == sorted(list(X_train.columns))):
+        print("step_3_modelling - 4. Controle minimal de la qualité des données - 71 features : OK")
             
     else:
         raise ValueError("ERREUR : Les données ne correspondent pas à ce qui est attendu")
     
     
-    
-    # 5. Création du pipeline    
-    
-    encoding = ColumnTransformer(
-        transformers = [
-            ("heure_jour_category_state", risk_level_encoder(), ["heure","jour","category","state"]),
-            ],  
-                remainder = "passthrough",
-                verbose_feature_names_out = False,
-        
-    ).set_output(transform="pandas")
+    # 5. Création du pipeline
 
+    colonnes_categorielles = [
+    "categorie_marchand", "pays_marchand", "pays_ip", "canal", "mode_saisie", "heure"
+    ]
 
     ohe = ColumnTransformer(
-        transformers = [
-            ("niveaux_risque", one_hot_encoder(), make_column_selector(dtype_exclude=np.number)),
-        ],  
-            remainder = "passthrough",
-            verbose_feature_names_out = False,
-        
-    ).set_output(transform="pandas")
-
-
-    isolation_forest = ColumnTransformer(
     transformers = [
-        ("isolation_forest", custom_isolation_forest(), make_column_selector(dtype_include=np.number)),
-        ("garder_autres_features", "passthrough", make_column_selector(dtype_include=np.number)),
+        ("one_hot_encoding", one_hot_encoding(), colonnes_categorielles),
         ],
             remainder = "passthrough",
             verbose_feature_names_out = False,
         
     ).set_output(transform="pandas")
+
+    isolation_forest = ColumnTransformer(
+    transformers = [
+        ("isolation_forest", custom_isolation_forest(), numeriques_sans_nan),
+        ("garder_autres_features", "passthrough", make_column_selector()),
+        ],
+            remainder = "passthrough",
+            verbose_feature_names_out = False,
+        
+    ).set_output(transform="pandas")
+
+
+    pipeline = Pipeline([
+        ("ohe_cat", ohe),
+        ("isolation_forest_num", isolation_forest),
+        ("model", xgboost()),
+    ])
     
     print("step_3_modelling - 5. Création du pipeline : OK")
     
     
-    
-    # 6. Preprocesing des données d'entrainement
-    
-    preprocessing = Pipeline([
-    ("encoding_niveaux_risque", encoding),
-    
-    ("ohe_niveaux_risque", ohe),
-    
-    ("ajout_feature_score_anomalie", isolation_forest),
-    
-    ])
-    
-    debut_preprocessing = perf_counter()
-    X_train_preprocessing = preprocessing.fit_transform(X_train, y_train)
-    temps_preprocessing = perf_counter() - debut_preprocessing
+    # 6. Entrainement du modèle
 
-    print(
-        "step_3_modelling - 6. Preprocessing des données d'entraînement "
-        f"(temps de preprocessing : {temps_preprocessing:.3f} s) : OK"
-    )
-    
-    
-    
-    # 7. Controle minimal de la qualité des données 
-        # TODO : Mettre en place une méthode de validation des données plus robuste avec Great Expectations
-        
-    if (len(list(X_train_preprocessing.columns)) == 18):
-        print("step_3_modelling - 7. Controle minimal de la qualité des données - 18 features : OK")
-            
-    else:
-        raise ValueError("ERREUR : Les données ne correspondent pas à ce qui est attendu")
-    
-    
-    
-    # 8. Entrainement du modèle
-    
-    model = Pipeline([
-    ("encoding_niveaux_risque", encoding),
-    ("ohe_niveaux_risque", ohe),
-    ("ajout_feature_score_anomalie", isolation_forest),
-    ("model", xgboost()),
-    ])
-    
-    # Les transformateurs du pipeline ont déjà été ajustés à l'étape 6.
-    # Entraîner uniquement le classifieur pour mesurer son temps de fit seul.
     debut_fit = perf_counter()
-    model.named_steps["model"].fit(X_train_preprocessing, y_train)
+    pipeline.fit(X_train, y_train)
     temps_fit = perf_counter() - debut_fit
 
     print(
-        "step_3_modelling - 8. Entraînement du modèle "
+        "step_3_modelling - 6. Preprocessing et entrainement du modèle "
         f"(temps de fit : {temps_fit:.3f} s) : OK"
     )
-    
-    
-    
-    # 9. Recherche du seuil optimal sur l'échantillon de validation
-    
-    cost_optimizer = threshold_cost_optimizer()
-    
-    proba_validation = model.predict_proba(X_validation)[:,1]
 
-    cost_optimizer.fit(y_validation, proba_validation)
-
-    print(f"Seuil optimal : {cost_optimizer.get_best_threshold()}")
-    print(f"Cout pour le seuil optimal : {cost_optimizer.get_best_cost()}€")
     
-    print("step_3_modelling - 9. Recherche du seuil optimal sur l'échantillon de validation : OK")
-    
-    
-    
-    # 10. Calcul des probabilités et prédictions
-    
-    proba_train = model.predict_proba(X_train)[:,1]
-    pred_train = (proba_train > cost_optimizer.get_best_threshold()).astype(int)
-
-    pred_validation = (proba_validation > cost_optimizer.get_best_threshold()).astype(int)
-
-    proba_test = model.predict_proba(X_test)[:,1]
-    pred_test = (proba_test > cost_optimizer.get_best_threshold()).astype(int)
-    
-    print("step_3_modelling - 10. Calcul des probabilités et prédictions : OK")
-    
-    
-    
-    # 11. Affichage des métriques
-    
-    display_roc_auc_score(y_train,proba_train,
-                          y_validation,proba_validation,
-                          y_test,proba_test)
-    
-    display_precision_score(y_train,pred_train,
-                            y_validation,pred_validation,
-                            y_test,pred_test)
-    
-    display_recall_score(y_train,pred_train,
-                        y_validation,pred_validation,
-                        y_test,pred_test)
-    
-    display_log_loss(y_train,proba_train,
-                    y_validation,proba_validation,
-                    y_test,proba_test)
-    
-    print("step_3_modelling - Affichage des métriques : OK")
-    
-    
-    
-    # 12. Export des artefacts
-    
+    # 7. Export du modèle
     joblib.dump(
-        value = model,
-        filename = f"06_models/{echantillon}XGBoostModel_V1.joblib",
+        value = pipeline,
+        filename = f"06_models/{echantillon}XGBoostPipeline_V2.joblib",
     )
-    
-    joblib.dump(
-        value = cost_optimizer,
-        filename = f"07_artifacts/{echantillon}CostOptimizer.joblib",
-    )   
-    
-    print("step_3_modelling - Export du modèle : OK")
 
-        
+    print(f"step_3_modelling - 7. Export du modèle - Pipeline exporté - {echantillon}XGBoostPipeline_V2 : OK")
