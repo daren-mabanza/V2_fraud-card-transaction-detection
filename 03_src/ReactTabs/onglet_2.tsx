@@ -34,9 +34,15 @@ const defaultColumns = [
   "categorie_marchand",
   "date_utc",
 ];
+/** Renvoie le libellé d'une colonne, avec un intitulé dédié à la date UTC. */
 const columnLabel = (key: string) =>
   key === "date_utc" ? "Horodatage UTC" : featureLabel(key);
 
+/**
+ * Affiche les paiements et gère leurs scores, explications et export CSV.
+ * Les explications réussies restent en mémoire par paiement jusqu'au prochain
+ * calcul réussi des scores ou au démontage du composant.
+ */
 export default function Demonstration({ dataset }: { dataset: DemoData }) {
   const observations = dataset.observations;
   const demoDay = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeZone: "UTC" }).format(new Date(dataset.day));
@@ -74,12 +80,14 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
   );
 
   useEffect(() => {
+    /** Ferme le sélecteur de colonnes et son aide lors d'un clic extérieur. */
     function closeMenu(event: MouseEvent) {
       if (!columnMenuRef.current?.contains(event.target as Node)) {
         setColumnMenu(false);
         setColumnHelp(false);
       }
     }
+    /** Ferme le sélecteur de colonnes et son aide lorsque la touche Échap est pressée. */
     function escape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setColumnMenu(false);
@@ -95,6 +103,11 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
     };
   }, []);
 
+  /**
+   * Calcule les probabilités en empêchant les lancements simultanés.
+   * Un succès annule l'explication en cours et vide le cache SHAP ; un échec
+   * conserve les scores et explications précédemment obtenus.
+   */
   async function calculate() {
     if (calculatingRef.current) return;
     calculatingRef.current = true;
@@ -120,6 +133,11 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
     }
   }
 
+  /**
+   * Affiche l'explication en cache ou la demande pour le paiement sélectionné.
+   * Exige des scores disponibles et annule la requête précédente. Seules les
+   * réponses réussies et non annulées alimentent le cache et le panneau courant.
+   */
   async function explain(row: Observation) {
     if (!hasScores) {
       setNotice("Veuillez d’abord calculer les probabilités.");
@@ -161,6 +179,7 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
     }
   }
 
+  /** Ajoute ou retire une colonne de l'affichage, sans modifier les features envoyées. */
   function toggleColumn(name: string) {
     setVisible((previous) => {
       const next = new Set(previous);
@@ -170,8 +189,18 @@ export default function Demonstration({ dataset }: { dataset: DemoData }) {
     });
   }
 
+  /**
+   * Télécharge les paiements dans l'ordre du tableau après calcul des scores.
+   * Inclut les identifiants, les colonnes affichées et les probabilités en %.
+   * Le CSV utilise UTF-8 avec BOM, le point-virgule et la virgule décimale ;
+   * les données exportées restent brutes, sans les unités d'affichage.
+   */
   function exportCsv() {
     if (!hasScores || calculating) return;
+    /**
+     * Échappe une cellule CSV : guillemets doublés, null vide et virgule décimale.
+     * Préfixe les chaînes pouvant être interprétées comme une formule par un tableur.
+     */
     const cell = (value: unknown) => {
       let text = value == null ? "" : typeof value === "number"
         ? String(value).replace(".", ",") : String(value);

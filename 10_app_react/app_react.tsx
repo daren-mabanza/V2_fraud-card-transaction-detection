@@ -9,9 +9,17 @@ import { loadExport } from "../03_src/ReactTabs/api";
 import type { BusinessMetrics, DemoData } from "../03_src/ReactTabs/types";
 import "./style.css";
 
+/**
+ * Charge un export au montage et expose les données, l'erreur et un réessai.
+ * La requête initiale est annulée au démontage ou au changement de route.
+ */
 function useExport<T>(route: string) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState("");
+  /**
+   * Recharge l'export et met à jour les données ou le message d'erreur.
+   * Une annulation n'affiche pas d'erreur et les données déjà chargées sont conservées.
+   */
   const load = useCallback(
     async (signal?: AbortSignal) => {
       setError("");
@@ -37,6 +45,7 @@ function useExport<T>(route: string) {
   return { data, error, retry: () => void load() };
 }
 
+/** Affiche l'attente de chargement ou une erreur accompagnée d'un bouton de réessai. */
 function ExportStatus({ error, retry }: { error: string; retry: () => void }) {
   return (
     <div className="explanation-panel">
@@ -56,12 +65,17 @@ function ExportStatus({ error, retry }: { error: string; retry: () => void }) {
   );
 }
 
+/**
+ * Assemble les exports, la navigation et les deux onglets de FraudLens.
+ * Les onglets restent montés lors de la navigation pour préserver leur état.
+ */
 function App() {
   const metrics = useExport<BusinessMetrics>("business-metrics");
   const dataset = useExport<DemoData>("demo-data");
   const [tab, setTab] = useState<"presentation" | "demonstration">(
     "presentation",
   );
+  /** Sélectionne l'onglet de démonstration et remonte en haut de la page. */
   function openDemo() {
     setTab("demonstration");
     window.scrollTo({ top: 0, behavior: "smooth" });

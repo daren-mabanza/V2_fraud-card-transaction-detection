@@ -4,6 +4,12 @@ import type { Data, Layout } from "plotly.js";
 import type { Explanation } from "../types";
 import { delta, featureLabel, featureValue, percentage } from "../format";
 
+/**
+ * Affiche les contributions SHAP avec Plotly chargé à la demande.
+ * L'option enlarged adapte le graphique à la fenêtre agrandie. L'ouverture
+ * de cette fenêtre réutilise l'explication reçue, sans nouvel appel API.
+ * Les graphiques et observateurs sont libérés lors du démontage.
+ */
 export default function Waterfall({
   explanation,
   enlarged = false,

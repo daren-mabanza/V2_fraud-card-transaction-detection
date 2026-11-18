@@ -33,6 +33,11 @@ const criteria = [
   },
 ] as const;
 
+/**
+ * Affiche la présentation et compare ML et règles à partir des métriques reçues.
+ * Le mois et la capacité filtrent les résultats existants ; aucune simulation
+ * n'est relancée. openDemo permet d'ouvrir l'onglet de démonstration.
+ */
 export default function Presentation({ openDemo, metrics }: { openDemo: () => void; metrics: BusinessMetrics }) {
   const [period, setPeriod] = useState("average");
   const [capacity, setCapacity] = useState(10);
