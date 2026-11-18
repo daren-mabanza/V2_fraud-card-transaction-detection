@@ -1,10 +1,13 @@
-# Contexte commun aux images API et Streamlit (racine du projet).
+# Contexte commun aux images API et React (racine du projet).
 # Conserver pyproject.toml, uv.lock et README.md pour installer le projet.
 # Conserver 03_src, 06_models et 07_artifacts pour les imports et joblib.
-# Conserver les deux applications, leurs assets et .streamlit/config.toml.
+# Conserver les applications API et React ainsi que leurs assets.
 
 # Données, exploration et entraînement hors des applications
-01_data/
+01_data/*
+!01_data/04_test_data/
+01_data/04_test_data/*
+!01_data/04_test_data/observations_2025_04_21.parquet
 02_notebooks/
 04_scripts/
 05_pipeline/
@@ -71,3 +74,10 @@ compose*.yaml
 compose*.yml
 docker-compose*.yaml
 docker-compose*.yml
+
+# Frontend : reconstruire les dépendances et les assets dans Docker
+**/node_modules/
+10_app_react/dist/
+10_app_react/test-results/
+10_app_react/playwright-report/
+!10_app_react/.env.example
