@@ -4,6 +4,11 @@ import { once } from "node:events";
 import { createServer } from "node:http";
 import { createApp } from "../server.mjs";
 
+/**
+ * Démarre un serveur de test sur un port libre de localhost.
+ * Enregistre sa fermeture et celle de ses connexions à la fin du test.
+ * @returns URL locale du serveur démarré.
+ */
 async function listen(app, t) {
   const server = createServer(app).listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -74,10 +79,12 @@ test("GCP : ID token obtenu côté serveur, audience conservée et renouvellemen
   let clients = 0,
     tokenRequests = 0;
   const auth = {
+    /** Simule un client Google et vérifie l'audience demandée par le relais. */
     async getIdTokenClient(audience) {
       clients++;
       assert.equal(audience, "https://service.a.run.app");
       return {
+        /** Fournit un token fictif différent à chaque appel pour tester le renouvellement. */
         async getRequestHeaders() {
           tokenRequests++;
           return new Headers({
@@ -117,6 +124,7 @@ test("GCP : ID token obtenu côté serveur, audience conservée et renouvellemen
 
 test("GCP indisponible : erreur compréhensible, pas de secret renvoyé", async (t) => {
   const auth = {
+    /** Simule une indisponibilité de l'authentification Google. */
     async getIdTokenClient() {
       throw new Error("secret interne");
     },

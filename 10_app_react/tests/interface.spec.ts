@@ -12,8 +12,10 @@ test.beforeEach(async ({ page }, info) => {
 });
 
 const rows = dataset.observations;
+/** Produit un score de test déterministe à partir de la position du paiement. */
 const scoreFor = (index: number) => 2 + index * 8;
 const requestLog: unknown[] = [];
+/** Construit une réponse SHAP fictive dont les contributions reconstituent le score. */
 const explanation = (prediction: number) => ({
   model_version: "test",
   output_scale: "percentage_points",
@@ -35,6 +37,7 @@ const explanation = (prediction: number) => ({
   ],
 });
 
+/** Intercepte le scoring et renvoie les scores dans un ordre volontairement inversé. */
 async function mockPredictions(page: Page) {
   await page.route("**/api/batch-predict", async (route) => {
     requestLog.push(route.request().postDataJSON());
@@ -50,6 +53,7 @@ async function mockPredictions(page: Page) {
     });
   });
 }
+/** Ouvre l'application et sélectionne l'onglet de démonstration. */
 async function openDemo(page: Page) {
   await page.goto("/");
   await page.getByRole("tab", { name: "Démonstration" }).click();

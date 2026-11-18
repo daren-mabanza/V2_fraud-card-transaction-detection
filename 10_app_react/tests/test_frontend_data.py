@@ -13,6 +13,7 @@ FIXTURES = Path(__file__).parent / 'fixtures'
 
 class FrontendDataTests(unittest.TestCase):
     def setUp(self):
+        """Prépare des exports temporaires à partir des jeux de test, sans charger le modèle."""
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
@@ -40,6 +41,7 @@ class FrontendDataTests(unittest.TestCase):
         (self.root / '07_artifacts/Full_parametres_export_metier.json').write_text(json.dumps({'date_export_utc': metrics['exported_at']}))
 
     def test_parquet_to_response_preserves_features_and_missing_values(self):
+        """Vérifie les identifiants, la journée, les variables et les valeurs manquantes renvoyés."""
         result = demo_data(self.root)
         self.assertEqual([row['id'] for row in result['observations']], self.ids)
         self.assertEqual(result['day'], '2025-04-21')
@@ -48,6 +50,7 @@ class FrontendDataTests(unittest.TestCase):
         json.dumps(result, allow_nan=False)
 
     def test_metrics_are_reread_after_an_export_changes(self):
+        """Vérifie la moyenne mensuelle et la relecture d’un export modifié."""
         first = business_metrics(self.root)
         average = next(row for row in first['results'] if row['period'] == 'average' and row['capacity'] == 10 and row['method'] == 'ML')
         monthly = [row['fraud_on_time'] for row in first['results'] if row['period'] != 'average' and row['capacity'] == 10 and row['method'] == 'ML']
@@ -60,6 +63,7 @@ class FrontendDataTests(unittest.TestCase):
         self.assertEqual(january['fraud_on_time'], 12)
 
     def test_missing_and_incomplete_exports_are_not_replaced_by_old_data(self):
+        """Vérifie que les exports absents ou incomplets provoquent une erreur."""
         (self.root / TEST_DATA).unlink()
         with self.assertRaises(FileNotFoundError):
             demo_data(self.root)
