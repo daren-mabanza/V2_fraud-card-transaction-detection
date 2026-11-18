@@ -1,539 +1,216 @@
-# FraudLens — Détection de fraude bancaire avec XGBoost
+# FraudLens — détection de fraude bancaire
 
-FraudLens est un projet de classification de transactions bancaires qui couvre la préparation des données, l’analyse exploratoire, la comparaison de modèles, l’optimisation du seuil de décision et l’exposition des prédictions dans une application.
+**Prioriser les cartes à investiguer et expliquer les scores de fraude, dans la limite du nombre de dossiers qu’une équipe peut traiter.**
 
-**Le modèle final retenu est XGBoost.** Il reçoit cinq informations sur une transaction, transformées en dix-huit variables par un pipeline scikit-learn. Une API FastAPI réalise l’inférence et une interface Streamlit permet de simuler une transaction et de consulter le résultat.
+Du traitement des données à l’application React/FastAPI, ce projet évalue la détection de fraude sur **1,5 million de paiements synthétiques** dans un contexte bancaire français. L’équipe fraude et son organisation sont également fictives.
 
-L’application est une démonstration : les décisions d’acceptation et de refus affichées ne déclenchent aucune opération bancaire réelle.
+**Stack :** Python · pandas · DuckDB · scikit-learn · XGBoost · SHAP · FastAPI · React/TypeScript · Plotly · Docker.
 
-**État documenté : 22 octobre 2026 · Auteur : Daren Mabanza · Version du package : 2.0.0 · Licence : MIT**
+## Objectif métier
 
-## Sommaire
+Les analystes ne peuvent pas examiner tous les paiements suspects. L’objectif est d’améliorer les investigations à **capacité constante : 8 ou 10 dossiers par jour ouvré**. Un dossier correspond à une **carte**, regroupant ses paiements en attente.
 
-- [Objectif et périmètre](#objectif-et-périmètre)
-- [Données et variables](#données-et-variables)
-- [Démarche de préparation et d’exploration](#démarche-de-préparation-et-dexploration)
-- [Pipeline du modèle final](#pipeline-du-modèle-final)
-- [Évaluation et choix de XGBoost](#évaluation-et-choix-de-xgboost)
-- [Architecture du dépôt](#architecture-du-dépôt)
-- [Installation et lancement local](#installation-et-lancement-local)
-- [Reproduire le traitement et l’entraînement](#reproduire-le-traitement-et-lentraînement)
-- [Utiliser l’API](#utiliser-lapi)
-- [Interface Streamlit](#interface-streamlit)
-- [Exécution avec Docker](#exécution-avec-docker)
-- [Limites actuelles et prochaines étapes](#limites-actuelles-et-prochaines-étapes)
-- [Licence](#licence)
+Deux stratégies sont comparées sur les mêmes transactions :
 
-## Objectif et périmètre
+- **Règles métier** : chaque paiement reçoit des points selon son montant, son canal, le pays du marchand et son horaire. Les cartes sont classées par somme des points.
+- **XGBoost** : chaque paiement reçoit une probabilité de fraude. Les cartes sont classées par somme des probabilités.
 
-Le projet cherche à identifier les transactions frauduleuses dans un jeu de données très déséquilibré. La cible `is_fraud` vaut `1` pour une fraude et `0` pour une transaction légitime.
+Dans les deux cas, les égalités sont départagées par le nombre de transactions puis le montant total, dans l’ordre décroissant. **Toutes les transactions sont éligibles : aucun seuil fixe ne décide des revues.** Les dossiers non traités restent en attente au cours du mois ; une carte peut être revue à nouveau si d’autres paiements arrivent.
 
-Deux types d’erreurs doivent être pris en compte :
+La règle de référence attribue **+1 point par critère** : montant ≥ 100 €, montant ≥ 250 €, paiement hors magasin, marchand hors France, horaire strictement entre minuit et 6 h en heure locale. Les deux critères de montant sont cumulatifs : un paiement de 300 € reçoit déjà 2 points pour son montant.
 
-- **Faux positif (FP)** : une transaction légitime est signalée comme frauduleuse.
-- **Faux négatif (FN)** : une transaction frauduleuse est acceptée.
+## Données et démarche
 
-Le seuil de décision est choisi sur un jeu de validation pour minimiser un coût associé à ces erreurs. Il ne repose donc pas sur la valeur par défaut de `0.5`.
+Le jeu complet contient **1 500 000 paiements, 3 000 clients et 5 178 cartes**, dont **7 500 paiements frauduleux, soit 0,5 %**. La cible est `fraude_confirmee`. Les 35 champs bruts décrivent le paiement, le marchand, le titulaire et la confirmation éventuelle de fraude.
 
-Le dépôt comprend actuellement le traitement des données, trois familles de modèles étudiées, le pipeline XGBoost retenu, les artefacts sauvegardés, l’API, l’interface et deux Dockerfiles. Le fichier `cloudbuild.yaml` est présent mais vide : l’automatisation du déploiement cloud reste à réaliser.
+L’EDA compare paiements légitimes et frauduleux, distributions, modalités et valeurs manquantes. Elle conduit à combiner le contexte d’achat et les habitudes historiques :
 
-## Données et variables
+| Famille | Exemples de variables retenues |
+| --- | --- |
+| Contexte du paiement | Montant en euros, catégorie et pays marchand, pays IP, canal, mode de saisie, heure, distance domicile–marchand |
+| Activité de la carte | Délai depuis le paiement précédent, paiements sur la dernière heure et depuis minuit, appareils déjà utilisés, ancienneté observée |
+| Dépenses habituelles | Écart absolu à la médiane passée des paiements de la carte et de l’enseigne |
+| Habitudes du client | Parts historiques par heure, catégorie marchand, pays, canal et mode de saisie |
 
-### Jeux de données
+DuckDB exprime en SQL les fenêtres temporelles et les agrégations par carte/client ; pandas gère le typage et les tableaux. Les historiques utilisent **uniquement les paiements strictement antérieurs**, en excluant ceux du même instant. Les calculs horaires utilisent `Europe/Paris` pour toutes les régions, convention conservée pour rester cohérent avec la génération des données.
 
-Les données sont stockées au format Parquet et décrivent des transactions dans un contexte américain. Les volumes ci-dessous proviennent des sorties conservées dans les notebooks :
+Le feature engineering produit 104 colonnes ; **71 entrées sont retenues pour le modèle**. Les identifiants, noms, labels et dates de confirmation ne sont pas des entrées du classifieur. La sélection complète est centralisée dans [ModellingParameters.py](03_src/FraudDetection/DataModelling/ModellingParameters.py).
 
-| Jeu | Transactions | Fraudes | Part de fraudes | Utilisation |
-| --- | ---: | ---: | ---: | --- |
-| `Full` | 1 852 394 | 9 651 | 0,521 % | Modélisation sur le jeu complet |
-| `Sample` | 50 001 | 261 | 0,522 % | Exploration sur un échantillon plus léger |
+### Choix du modèle et du preprocessing
 
-Le jeu brut comporte **23 colonnes**. Le nettoyage en conserve **15**, puis la préparation pour la modélisation produit **8 colonnes** :
+Les expérimentations du [notebook de modélisation](02_notebooks/03_model_tests.ipynb), également présentées dans le [rapport du projet](<Projet Data Science - Fraude - Détection des transactions frauduleuses (2).pdf>), comparent notamment Random Forest et XGBoost :
 
-```text
-id, trans_date_trans_time, jour, heure, state, category, amt, is_fraud
-```
+| Modèle | ROC AUC — test | Précision — test | Rappel — test |
+| --- | ---: | ---: | ---: |
+| Random Forest | 0,9503 | 47,41 % | 50,53 % |
+| XGBoost | **0,9562** | **55,82 %** | **51,10 %** |
 
-Les fichiers Parquet sont exclus du suivi Git par `.gitignore`. Ils sont présents dans l’espace de travail utilisé pour cette documentation, mais doivent être fournis séparément pour reproduire l’entraînement après un clonage. Le dépôt ne contient pas de procédure de téléchargement ni de référence explicite à la source d’origine des données.
+Ces essais utilisent des seuils de classification étudiés dans le notebook. XGBoost est retenu pour son compromis entre classement, précision et stabilité train/test. **L’évaluation métier finale repose sur la priorité des dossiers, sans reprendre ces seuils.**
 
-### Les cinq variables utilisées à l’inférence
+Le pipeline servi regroupe trois étapes ajustées sur le train :
 
-| Variable | Signification | Format attendu par l’API |
-| --- | --- | --- |
-| `amt` | Montant de la transaction, présenté en USD dans l’interface | Nombre strictement positif |
-| `heure` | Heure de la transaction | Entier de `0` à `23` |
-| `jour` | Jour de la semaine | Nom anglais, de `Monday` à `Sunday` |
-| `category` | Catégorie d’achat | L’un des 14 codes acceptés |
-| `state` | État américain | Code à deux lettres accepté par le schéma |
+1. **One-hot encoding** des catégories et de l’heure, avec gestion des modalités inconnues.
+2. **Ajout d’un score d’atypicité non supervisé, avec Isolation Forest**, calculé uniquement à partir des colonnes numériques sans valeurs manquantes à l’entraînement. Les autres variables sont conservées.
+3. **Classification XGBoost**, avec les paramètres retenus centralisés dans le code, dont une pondération de la classe fraude (`scale_pos_weight=3`).
 
-`id` sert à identifier les lignes et `trans_date_trans_time` permet le découpage chronologique. Ces deux colonnes ne sont pas transmises au classifieur. La cible `is_fraud` est toujours séparée des variables explicatives.
+Les valeurs manquantes numériques sont conservées, sans imputation systématique. La sérialisation du pipeline garantit la réutilisation des transformations ajustées et du modèle à l’inférence.
 
-### Découpage chronologique
+## Résultats métier
 
-Le workflow trie les transactions par date et construit trois périodes distinctes. Les bornes de début sont incluses et les bornes de fin exclues.
+L’entraînement porte sur **[31 décembre 2023, 1er janvier 2025[ en UTC**. L’évaluation opérationnelle compare les deux stratégies **mois par mois, de janvier à juin 2025**, sur **509 995 transactions dont 2 325 fraudes**.
 
-| Ensemble | Période | Transactions | Fraudes | Part de fraudes | Rôle |
-| --- | --- | ---: | ---: | ---: | --- |
-| Entraînement | `[2019-01-01, 2020-01-01[` | 924 850 | 5 220 | 0,564 % | Apprentissage des transformations et du modèle |
-| Validation | `[2020-01-01, 2020-10-01[` | 646 023 | 3 495 | 0,541 % | Choix du seuil de décision |
-| Test | `[2020-10-01, 2021-01-01[` | 281 521 | 936 | 0,332 % | Évaluation sur une période ultérieure |
+La simulation ne rend disponibles que les paiements déjà arrivés à l’heure de la revue. Les sessions ont lieu à **9 h, les jours ouvrés hors jours fériés métropolitains**. La file est réinitialisée chaque mois, et la capacité est identique pour les deux méthodes.
 
-La proportion de fraudes diminue sur la période de test. Cette variation doit être prise en compte lors de la lecture des métriques, notamment de la précision.
+| Capacité / jour | Méthode | Fraudes contrôlées à temps | Dossiers pertinents | Montant potentiellement récupérable |
+| --- | --- | ---: | ---: | ---: |
+| 8 dossiers | Règles métier | 33,41 % | 10,86 % | 38,99 % |
+| 8 dossiers | **XGBoost** | **67,75 %** | **28,52 %** | **69,14 %** |
+| 10 dossiers | Règles métier | 36,91 % | 9,77 % | 42,26 % |
+| 10 dossiers | **XGBoost** | **69,65 %** | **24,19 %** | **70,94 %** |
 
-## Démarche de préparation et d’exploration
+À 10 dossiers par jour : **+32,74 points de fraudes contrôlées à temps** et **+28,68 points de montant potentiellement récupérable** face aux règles.
 
-### Nettoyage
+- **Fraudes contrôlées à temps** : part des transactions frauduleuses revues avant leur date de confirmation, parmi toutes les fraudes du mois.
+- **Dossiers pertinents** : part des revues contenant au moins un paiement frauduleux, même examiné trop tard. Une carte revue plusieurs fois compte plusieurs revues.
+- **Montant potentiellement récupérable** : part du montant fraudé examinée à temps, en supposant une récupération de 100 % de ces montants. Il s’agit d’une hypothèse de simulation, pas d’un recouvrement constaté.
 
-La fonction `data_cleaning()` de [DataCleaning.py](03_src/FraudDetection/DataPreparation/DataCleaning.py) :
+**Source :** [métriques mensuelles](07_artifacts/Full_metriques_simulation_metier.csv) et [manifeste d’export](07_artifacts/Full_parametres_export_metier.json) du **18 novembre 2026**, associé au pipeline sauvegardé. Le tableau présente la **moyenne arithmétique des six taux mensuels**, comme l’interface. Chaque mois a le même poids ; ces valeurs diffèrent donc des ratios cumulés de `Full_synthese_periode_metier.csv`.
 
-1. Charge `FullData.parquet` ou `SampleData.parquet` selon la configuration.
-2. Reconstruit un identifiant séquentiel `id` et retire les six premiers caractères de `merchant`.
-3. Supprime `cc_num`, `first`, `last`, `gender`, `street`, `zip`, `trans_num` et `unix_time`.
-4. Convertit les dates, les variables catégorielles et les colonnes numériques vers des types adaptés, dont `uint8`, `uint32` et `float32`.
-5. Vérifie la présence de `is_fraud` et des 15 colonnes attendues, puis écrit le fichier intermédiaire.
-
-Le notebook de nettoyage rapporte une absence de valeurs manquantes dans le jeu brut inspecté. Le script réalise toutefois uniquement un contrôle minimal de structure ; il n’implémente pas encore une validation complète de qualité des données.
-
-### Analyse exploratoire
-
-Le notebook [02_eda.ipynb](02_notebooks/02_eda.ipynb) travaille sur `SampleDataForEda.parquet`. Il étudie les distributions, les valeurs atypiques, les modalités catégorielles, les corrélations de Pearson et de Spearman, ainsi que les relations avec la cible à l’aide de tests de Mann–Whitney et du Khi².
-
-Parmi les observations enregistrées sur cet échantillon :
-
-- Le montant médian est d’environ **47,35** pour les transactions légitimes, contre **346,60** pour les fraudes.
-- Le test de Mann–Whitney appliqué à `city_pop` ne met pas en évidence de différence au seuil de 5 % dans cet échantillon (`p ≈ 0,653`).
-- Des variables temporelles, l’âge, la distance acheteur–magasin calculée par Haversine et plusieurs statistiques de fraude par modalité ont été explorés.
-
-Le pipeline final utilise seulement `amt`, `heure`, `jour`, `category` et `state`. Les statistiques de fraude calculées sur l’ensemble de l’échantillon exploratoire restent descriptives : l’entraînement reconstruit ses propres encodages à partir du jeu d’entraînement.
-
-### Préparation pour la modélisation
-
-La fonction `feature_engineering()` de [FeatureEngineering.py](03_src/FraudDetection/DataPreparation/FeatureEngineering.py) sélectionne les colonnes utiles et extrait `jour` et `heure` de `trans_date_trans_time`. Les jours suivent l’ordre `Monday` → `Sunday`. Le résultat est enregistré dans `{Full|Sample}DataForModel.parquet`.
-
-## Pipeline du modèle final
-
-Le pipeline est assemblé dans [Modelling.py](03_src/FraudDetection/DataModelling/Modelling.py). Les paramètres sont centralisés dans [ModellingParameters.py](03_src/FraudDetection/DataModelling/ModellingParameters.py) et les transformateurs personnalisés dans [ModellingTools.py](03_src/FraudDetection/DataModelling/ModellingTools.py).
+## Architecture
 
 ```mermaid
-flowchart TD
-    A["5 entrées : montant, heure, jour, catégorie, État"]
-    B["RiskLevelEncoder : 4 niveaux de risque catégoriels"]
-    C["OneHotEncoder : 16 indicatrices + montant"]
-    D["Isolation Forest : ajout d'un score d'anomalie"]
-    E["XGBoost : 18 variables → probabilité de fraude"]
-    F["Seuil optimisé sur la validation"]
-    G["Décision : acceptation ou refus simulé"]
-    A --> B --> C --> D --> E --> F --> G
+flowchart LR
+    UI["Navigateur<br/>React · TypeScript · Plotly"] <--> NODE["Serveur Node<br/>Relais API · token GCP optionnel"]
+    NODE <--> API["FastAPI<br/>Validation · prédiction · SHAP"]
+    MODELS["Pipeline et explainer sauvegardés"] --> API
+    EXPORTS["Exports métier et dix paiements de démonstration"] --> API
 ```
 
-### 1. Encodage des niveaux de risque
-
-`RiskLevelEncoder` apprend le taux de fraude associé à chaque modalité de `heure`, `jour`, `category` et `state`, puis répartit ces taux par quantiles en quatre niveaux : `tres_faible`, `faible`, `moderee` et `elevee`.
-
-Lors de `fit_transform`, l’encodage des lignes d’entraînement est calculé **hors pli**, avec cinq plis internes (`KFold`, mélange activé, `random_state=42`). La cible d’une ligne ne sert donc pas à calculer son propre encodage. L’encodeur apprend ensuite les statistiques sur tout le jeu d’entraînement pour transformer la validation, le test et les nouvelles transactions sans leurs étiquettes.
-
-Une modalité inconnue ou manquante est associée au taux de fraude moyen appris avant discrétisation, lorsque celle-ci est définie. Les plis internes sont aléatoires : ils ne constituent pas une validation chronologique supplémentaire.
-
-### 2. Encodage en indicatrices
-
-`OneHotEncoder` transforme les quatre variables de risque en **16 indicatrices**. Les quatre niveaux sont explicitement définis pour chaque variable, aucune catégorie n’est supprimée et la sortie est dense. Le montant est conservé, ce qui produit **17 variables**.
-
-### 3. Ajout d’un score d’anomalie
-
-`CustomIsolationForest` apprend sur ces 17 variables et ajoute `score_anomalie = -decision_function(X)`. Un score élevé décrit une transaction plus atypique ; ce score n’est pas une probabilité de fraude.
-
-La configuration actuelle du script utilise **300 arbres**, `max_samples="auto"`, `contamination=0.006` et `random_state=42`. Certains essais du notebook utilisent `contamination=0.07` ; il faut donc distinguer ces expériences de la configuration actuelle des scripts.
-
-À cette étape, le classifieur reçoit **18 variables**. Isolation Forest contribue à leur construction ; **XGBoost produit la prédiction finale**.
-
-### 4. Classification XGBoost
-
-Les hyperparamètres retenus sont définis explicitement dans le code :
-
-| Paramètre | Valeur |
-| --- | ---: |
-| `n_estimators` | `305` |
-| `max_depth` | `8` |
-| `learning_rate` | `0.014413697528610409` |
-| `min_child_weight` | `4` |
-| `subsample` | `0.902144564127061` |
-| `colsample_bytree` | `0.8736932106048627` |
-| `gamma` | `0.010299214204601972` |
-| `reg_alpha` | `0.014899847475658236` |
-| `reg_lambda` | `0.20399223998555607` |
-
-Le notebook contient une recherche `RandomizedSearchCV` avec dix configurations, cinq plis et le score `neg_log_loss` pour XGBoost. Le script d’entraînement réutilise les valeurs retenues et ne relance pas cette recherche. Il n’ajoute pas d’étape de calibration des probabilités au pipeline final.
-
-### 5. Optimisation du seuil
-
-`ThresholdCostOptimizer` évalue 200 seuils régulièrement espacés entre `0` et `1` sur le jeu de validation, selon la fonction :
+**FastAPI assure l’inférence ; React assure l’affichage.** Le serveur Node relaie les appels et obtient le token en mode GCP. Les modèles et exports Python restent côté API, les identifiants de service côté serveur.
 
 ```text
-Coût total = 20 × faux positifs + 125 × faux négatifs
+01_data/
+  01_raw_data/             Paiements synthétiques bruts
+  02_intermediate_data/    Données nettoyées et typées
+  03_processed_data/       Données enrichies pour le modèle
+  04_test_data/            Dix observations de démonstration
+02_notebooks/              Nettoyage, EDA, comparaison des modèles, essais API/SHAP
+03_src/
+  FraudDetection/
+    DataPreparation/      Nettoyage et feature engineering
+    SQL/                  Requête DuckDB des historiques
+    DataModelling/        Pipeline, paramètres et fonctions de modélisation
+      Export/             Métriques métier, observations et explainer SHAP
+  FastAPITools/            Schémas Pydantic et lecture des exports pour l’interface
+  ReactTabs/               Onglets, appels API et waterfall Plotly
+  Tools/                   Fonctions pandas, EDA et simulation métier
+04_scripts/                Une commande par étape du traitement
+05_pipeline/               Orchestration des six étapes
+06_models/                 Pipeline XGBoost et explainer SHAP sérialisés
+07_artifacts/              CSV métier et manifeste de traçabilité
+08_outputs/                Sorties d’essais API
+09_app_fastapi/             Application FastAPI et Dockerfile
+10_app_react/               Application React, serveur Node, style, tests et Dockerfile
+11_configs/                Configuration Full / Sample
+pyproject.toml, uv.lock     Dépendances Python
 ```
 
-Ces montants sont des hypothèses de coût du projet. Les scripts les affichent en euros ; ils sont distincts des montants de transaction présentés en USD dans l’interface. Le coût d’un faux négatif est fixe et ne dépend pas du montant de la transaction concernée.
+`app_react.tsx` assemble les onglets de `03_src/ReactTabs`. Les dépendances frontend sont séparées des dépendances Python.
 
-L’artefact `07_artifacts/FullCostOptimizer.joblib` contient actuellement :
+## Lancer le projet
 
-- un seuil de **`0.16080402010050251`**, soit environ **16,08 %** ;
-- un coût minimal sauvegardé de **192 785**, avec les coefficients ci-dessus.
-
-L’API compare la probabilité non arrondie au seuil exact de l’artefact : `probabilité > seuil`. Le pourcentage renvoyé à l’utilisateur est arrondi après le calcul de la décision. La route `/model-info` arrondit, quant à elle, le seuil à trois décimales et renvoie actuellement `0.161`.
-
-## Évaluation et choix de XGBoost
-
-### Comparaison des modèles étudiés
-
-Trois familles ont été expérimentées : régression logistique, Random Forest et XGBoost. Le tableau reprend les **sorties enregistrées** dans [03_model_tests.ipynb](02_notebooks/03_model_tests.ipynb), et non une nouvelle exécution réalisée pour cette documentation.
-
-| Modèle | ROC AUC validation ↑ | ROC AUC test ↑ | Log loss test ↓ | Coût minimal de validation enregistré ↓ |
-| --- | ---: | ---: | ---: | ---: |
-| Régression logistique | 0,9432 | 0,9323 | 0,013390 | 265 270 |
-| Random Forest | 0,9866 | 0,9807 | 0,009952 | 189 675 |
-| **XGBoost — modèle retenu** | **0,9905** | **0,9879** | **0,009443** | 192 830 |
-
-Les résultats enregistrés soutiennent le choix de XGBoost pour sa capacité à classer les transactions et sa log loss sur les périodes de validation et de test. L’écart de ROC AUC entre entraînement et test est également plus faible que pour Random Forest dans ces sorties.
-
-**Le choix comporte un compromis : Random Forest obtient le coût de validation le plus faible dans les essais conservés.** XGBoost n’est donc pas présenté comme le meilleur modèle sur tous les critères.
-
-### Résultats du workflow XGBoost au seuil optimisé
-
-Ces métriques proviennent de la section **« Test Modelling.py »** du notebook, où les décisions utilisent le seuil optimisé d’environ `0.1608`.
-
-| Métrique | Entraînement | Validation | Test |
-| --- | ---: | ---: | ---: |
-| ROC AUC | 0,9921 | 0,9905 | 0,9879 |
-| Précision | 51,93 % | 49,08 % | 37,28 % |
-| Rappel | 68,95 % | 66,98 % | 65,60 % |
-| Log loss | 0,012005 | 0,012401 | 0,009443 |
-
-Sur la période de test, ces sorties indiquent qu’environ **65,6 % des fraudes sont détectées** et que **37,3 % des transactions signalées sont effectivement frauduleuses**. La ROC AUC élevée ne suffit donc pas à résumer l’utilité opérationnelle du modèle : le volume de fausses alertes reste un enjeu.
-
-Deux précisions permettent de lire les résultats sans mélanger les expériences :
-
-- Une section exploratoire antérieure du notebook utilise un seuil manuel de `0.19` pour les prédictions d’entraînement et de test. Ses valeurs de précision et de rappel ne sont pas celles du tableau ci-dessus.
-- Le coût de validation sauvegardé dans l’artefact actuel est **192 785**, alors que le notebook affiche **192 830**. Le seuil est identique, mais les sorties historiques ne certifient pas à elles seules toutes les métriques du fichier actuellement servi. Une réévaluation de cet artefact est nécessaire pour les confirmer.
-
-## Architecture du dépôt
-
-```text
-V2_projet_fraud_detection/
-├── 01_data/
-│   ├── 01_raw_data/              # FullData.parquet / SampleData.parquet
-│   ├── 02_intermediate_data/     # {Full|Sample}DataForEda.parquet
-│   └── 03_processed_data/        # {Full|Sample}DataForModel.parquet
-├── 02_notebooks/
-│   ├── 01_cleaning.ipynb         # Inspection et nettoyage
-│   ├── 02_eda.ipynb              # Exploration et essais de variables
-│   ├── 03_model_tests.ipynb      # Comparaison, réglages et évaluation
-│   └── 04_api_tests.ipynb        # Essais manuels d’inférence et d’API
-├── 03_src/
-│   ├── FraudDetection/
-│   │   ├── DataPreparation/     # Nettoyage et feature engineering
-│   │   └── DataModelling/       # Pipeline, paramètres et transformateurs
-│   ├── FastAPITools/
-│   │   └── PydanticSchemas/     # Contrats de validation de l’API
-│   ├── StreamlitTabs/           # Présentation et formulaire
-│   └── Tools/                   # Fonctions d’EDA et conversions de types
-├── 04_scripts/                  # Exécution séparée des trois étapes
-├── 05_pipeline/
-│   └── step_1_2_3_full_pipeline.py
-├── 06_models/
-│   └── FullXGBoostModel_V1.joblib
-├── 07_artifacts/
-│   └── FullCostOptimizer.joblib
-├── 08_outputs/                  # Répertoire réservé aux sorties
-├── 09_app_fastapi/
-│   ├── app_fastapi.py
-│   └── Dockerfile
-├── 10_app_streamlit/
-│   ├── app_streamlit.py
-│   ├── style.css
-│   ├── README.md
-│   └── Dockerfile
-├── 11_configs/
-│   └── paths.yaml               # Sélection Full / Sample
-├── .streamlit/config.toml       # Thème et configuration Streamlit
-├── .dockerignore
-├── .gitignore
-├── cloudbuild.yaml              # Présent, encore vide
-├── pyproject.toml
-├── uv.lock
-├── LICENSE
-└── README.md
-```
-
-Le pipeline sauvegardé inclut les transformations et le classifieur. L’optimiseur de coût est enregistré dans un second fichier. Ces deux artefacts doivent être conservés ensemble pour servir le modèle avec son seuil associé.
-
-## Installation et lancement local
-
-### Prérequis
-
-- **Python 3.14** : le verrou `uv.lock` indique `requires-python = ">=3.14"` et les images Docker utilisent Python 3.14.
-- **uv** pour installer les dépendances à partir de `pyproject.toml` et `uv.lock`.
-- Les deux artefacts `FullXGBoostModel_V1.joblib` et `FullCostOptimizer.joblib` pour lancer l’API. Les données d’entraînement ne sont pas nécessaires pour utiliser les applications avec ces artefacts.
-- Les données Parquet brutes pour relancer le traitement et l’entraînement.
-
-**Toutes les commandes suivantes sont à exécuter depuis la racine `V2_projet_fraud_detection/`.** Les scripts de traitement et l’API utilisent des chemins relatifs à ce répertoire.
-
-### Installer les dépendances
-
-Pour disposer de l’exploration, de l’entraînement et des deux applications :
+Prérequis : **Python 3.14.0**, **uv**, **Node.js 24 LTS** et **npm**. Les commandes Python ci-dessous se lancent depuis la racine du dépôt.
 
 ```bash
-uv sync --locked --all-extras --python 3.14
+uv sync --locked
 ```
 
-Les groupes optionnels sont organisés par usage :
+### Préparer les données et artefacts
 
-| Extra | Contenu principal |
+L’API utilise le pipeline et l’explainer de `06_models`, les résultats de `07_artifacts` et `01_data/04_test_data/observations_2025_04_21.parquet`. Si ces sorties sont déjà disponibles, passer directement au lancement des services.
+
+Pour les reconstruire, fournir `01_data/01_raw_data/FullPaiementsCarte.parquet` et conserver `echantillon.type: Full` dans `11_configs/paths.yaml`. Les gros Parquet sont exclus du suivi Git ; leur téléchargement n’est pas automatisé dans le dépôt.
+
+```bash
+uv run python 05_pipeline/step_1_2_3_4_5_6_full_pipeline.py
+```
+
+Cette commande enchaîne **nettoyage → features → entraînement → évaluation métier → export des dix paiements → export SHAP**. Elle réentraîne et remplace les artefacts. Chaque étape peut aussi être exécutée séparément avec son script dans `04_scripts`.
+
+### Démarrer l’API et l’interface
+
+Premier terminal, à la racine :
+
+```bash
+uv run uvicorn 09_app_fastapi.app_fastapi:app --host 127.0.0.1 --port 8080
+```
+
+Deuxième terminal :
+
+```bash
+cd 10_app_react
+npm ci
+npm run dev
+```
+
+**Interface :** <http://localhost:5173> · **Documentation API :** <http://127.0.0.1:8080/docs>.
+
+Après un export métier ou des observations, recharger la page suffit, sans JSON frontend à régénérer. Après réentraînement ou export SHAP, redémarrer FastAPI.
+
+## API et démonstration
+
+| Route FastAPI | Rôle |
 | --- | --- |
-| `ml` | pandas, NumPy, scikit-learn, XGBoost, PyYAML |
-| `exploration` | PyArrow, Fastparquet, SciPy, Matplotlib, Seaborn, Plotly, DuckDB, Kaleido |
-| `fastapi` | FastAPI, Pydantic et dépendances nécessaires au chargement du modèle |
-| `streamlit` | Interface Streamlit |
+| `GET /health` | Vérifier la disponibilité du service |
+| `GET /demo-data` | Lire les dix observations exportées |
+| `GET /business-metrics` | Lire les résultats métier et préparer leur moyenne d’affichage |
+| `POST /batch-predict` | Recevoir 1 à 10 observations dans le champ `data`, renvoyer leurs probabilités en % |
+| `POST /shap-explanation` | Expliquer 1 à 10 observations avec les contributions SHAP |
 
-L’installation avec tous les extras est recommandée pour travailler sur l’ensemble du projet : l’entraînement utilise aussi la lecture Parquet et importe Matplotlib via les outils de modélisation. `ipykernel` fait partie des dépendances de base.
+Les entrées sont définies dans [Schemas.py](03_src/FastAPITools/PydanticSchemas/Schemas.py). **L’API attend les 71 features déjà calculées**, sans identifiants ni cible ; elle ne reconstruit pas un historique à partir d’un paiement brut. Le pipeline et l’explainer sont chargés une fois par processus ; les prédictions et explications sont calculées à la demande.
 
-Pour utiliser uniquement l’API et l’interface avec les artefacts existants :
+L’application propose deux onglets :
 
-```bash
-uv sync --locked --extra fastapi --extra streamlit --python 3.14
-```
+- **Présentation** : démarche, comparaison mensuelle des règles et du modèle, capacités de 8 ou 10 dossiers et moyenne des mois.
+- **Démonstration** : dix paiements du **21 avril 2025**, scoring au clic, tri des probabilités, choix des colonnes et explication individuelle.
 
-### Démarrer les applications
+Le lot contient cinq fraudes et cinq paiements légitimes aux scores contrastés. **Il ne mesure pas les performances.** Le waterfall affiche les dix principales contributions SHAP et leur reste sommé dans « Autres variables ».
 
-Dans un premier terminal, lancer l’API :
-
-```bash
-uv run --no-sync uvicorn app_fastapi:app --app-dir 09_app_fastapi --host 127.0.0.1 --port 8000
-```
-
-Dans un second terminal, lancer l’interface :
-
-```bash
-uv run --no-sync streamlit run 10_app_streamlit/app_streamlit.py
-```
-
-| Service | Adresse locale |
-| --- | --- |
-| Interface FraudLens | <http://localhost:8501> |
-| État de l’API | <http://127.0.0.1:8000/health> |
-| Documentation interactive de l’API | <http://127.0.0.1:8000/docs> |
-| Schéma OpenAPI | <http://127.0.0.1:8000/openapi.json> |
-
-L’option `--no-sync` réutilise l’environnement installé à l’étape précédente. L’API charge les deux artefacts au démarrage ; elle doit être redémarrée après leur remplacement.
-
-Pour connecter Streamlit à une autre adresse, définir `FRAUD_API_URL` avec l’URL de base du service, sans `/predict` ni `/model-info`. Exemple sous Bash :
-
-```bash
-FRAUD_API_URL=http://127.0.0.1:8000 uv run --no-sync streamlit run 10_app_streamlit/app_streamlit.py
-```
-
-## Reproduire le traitement et l’entraînement
-
-### Choisir le jeu de données
-
-Le fichier [11_configs/paths.yaml](11_configs/paths.yaml) contient actuellement :
-
-```yaml
-echantillon:
-  type: Full
-```
-
-Remplacer `Full` par `Sample` permet de travailler sur l’échantillon. Les noms sont sensibles à la casse. Placer le fichier correspondant dans `01_data/01_raw_data/` :
+SHAP réutilise le classifieur du pipeline, sans le réentraîner, avec une référence de 10 000 observations du train. Les contributions concernent les variables **après preprocessing**. Elles sont exprimées en points de pourcentage et vérifient :
 
 ```text
-01_data/01_raw_data/FullData.parquet
-01_data/01_raw_data/SampleData.parquet
+Probabilité de référence (%) + somme des contributions (points) = probabilité finale (%)
 ```
 
-Le code attend le schéma brut étudié dans `01_cleaning.ipynb`, notamment les colonnes supprimées lors du nettoyage. Un fichier contenant uniquement les cinq entrées de l’API ne convient pas à cette étape.
+## Docker et GCP
 
-### Exécuter le workflow
-
-Lancer les trois étapes séparément :
-
-```bash
-uv run --no-sync python 04_scripts/step_1_data_cleaning.py
-uv run --no-sync python 04_scripts/step_2_feature_engineering.py
-uv run --no-sync python 04_scripts/step_3_modelling.py
-```
-
-Ou exécuter l’enchaînement complet :
-
-```bash
-uv run --no-sync python 05_pipeline/step_1_2_3_full_pipeline.py
-```
-
-| Étape | Entrée | Sortie |
-| --- | --- | --- |
-| Nettoyage | `01_data/01_raw_data/{Full\|Sample}Data.parquet` | `01_data/02_intermediate_data/{Full\|Sample}DataForEda.parquet` |
-| Préparation | Fichier intermédiaire | `01_data/03_processed_data/{Full\|Sample}DataForModel.parquet` |
-| Modélisation | Fichier préparé | `06_models/{Full\|Sample}XGBoostModel_V1.joblib` et `07_artifacts/{Full\|Sample}CostOptimizer.joblib` |
-
-La modélisation affiche les durées de préparation et d’entraînement, le seuil, le coût de validation, puis la ROC AUC, la précision, le rappel et la log loss sur les trois ensembles.
-
-Les répertoires de sortie doivent exister. Une nouvelle exécution remplace les fichiers portant les mêmes noms. Le mode `Sample` produit ses propres artefacts, mais **l’API charge actuellement les fichiers `Full` avec des chemins fixes** : modifier `paths.yaml` ne change pas le modèle servi.
-
-### Ouvrir les notebooks
-
-Utiliser un environnement compatible Jupyter, par exemple l’extension Jupyter de VS Code, avec l’interpréteur `.venv/bin/python` comme noyau. Certains notebooks contiennent un `%cd` absolu vers la machine de développement : adapter ce chemin avant exécution.
-
-Les notebooks conservent des essais et des états intermédiaires. Pour reproduire le workflow courant, utiliser les scripts de `04_scripts/` ou `05_pipeline/`. `04_api_tests.ipynb` contient des appels HTTP manuels et nécessite que l’API soit démarrée.
-
-## Utiliser l’API
-
-Le service est défini dans [app_fastapi.py](09_app_fastapi/app_fastapi.py), avec les schémas de validation de [Schemas.py](03_src/FastAPITools/PydanticSchemas/Schemas.py).
-
-| Méthode | Route | Fonction |
-| --- | --- | --- |
-| `GET` | `/health` | Retourne `{"status": "ok"}` lorsque le service répond |
-| `POST` | `/predict` | Analyse une transaction et retourne la décision et la probabilité |
-| `GET` | `/model-info` | Retourne le nom du modèle, sa version déclarée, son seuil arrondi et ses variables |
-
-### Prédire une transaction
-
-Le corps de la requête est **un objet JSON unique** contenant les cinq champs obligatoires :
-
-```bash
-curl --request POST http://127.0.0.1:8000/predict \
-  --header 'Content-Type: application/json' \
-  --data '{"amt": 950.0, "heure": 2, "jour": "Saturday", "category": "shopping_net", "state": "CA"}'
-```
-
-Exemple de résultat conservé dans le notebook d’essais pour cette transaction ; la probabilité peut changer avec l’artefact utilisé :
-
-```json
-{
-  "message": "La transaction a été refusé",
-  "prédiction": 1,
-  "probabilité": 81.63
-}
-```
-
-- `prédiction = 1` signifie que la transaction est signalée comme frauduleuse et refusée dans la simulation.
-- `prédiction = 0` signifie qu’elle est acceptée dans la simulation.
-- `probabilité` est déjà exprimée en **pourcentage de 0 à 100**, arrondie à deux décimales.
-
-Les clés accentuées et le texte de l’exemple correspondent au contrat actuellement implémenté.
-
-### Validation des entrées
-
-Pydantic refuse les champs supplémentaires (`extra="forbid"`). Le montant doit être un nombre JSON strictement positif ; l’heure doit être un entier JSON de `0` à `23`. Les chaînes numériques ne remplacent pas ces types.
-
-Les jours doivent être fournis en anglais :
-
-```text
-Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
-```
-
-Les catégories autorisées sont :
-
-```text
-entertainment, food_dining, gas_transport, grocery_net, grocery_pos,
-health_fitness, home, kids_pets, misc_net, misc_pos, personal_care,
-shopping_net, shopping_pos, travel
-```
-
-`state` accepte les codes des 50 États américains et `DC`, définis explicitement dans le schéma. Les entrées non conformes produisent une réponse HTTP `422`. La route de prédiction ne prend pas en charge les lots de transactions.
-
-### Consulter les informations du modèle
-
-```bash
-curl http://127.0.0.1:8000/model-info
-```
-
-Réponse attendue avec l’optimiseur actuellement sauvegardé :
-
-```json
-{
-  "model": "FullXGBoostModel",
-  "version": "1.1",
-  "seuil": 0.161,
-  "variables": ["amt", "heure", "jour", "category", "state"]
-}
-```
-
-Ici, `seuil` est une valeur entre `0` et `1`, contrairement à `probabilité` dans `/predict`. Les chemins des artefacts ne figurent pas dans la réponse publique, qui est filtrée par `ModelInfoOutput`.
-
-La version du package (`2.0.0`), la version déclarée de l’API (`1.0.0`), celle renvoyée par `/model-info` (`1.1`) et le suffixe du fichier modèle (`V1`) sont actuellement distincts.
-
-## Interface Streamlit
-
-L’interface **FraudLens** comporte deux pages :
-
-- **Présentation du projet** : explication des transformations, informations récupérées depuis `/model-info` et accès au formulaire.
-- **Utilisation de l’outil** : saisie d’une transaction, envoi à `/predict`, affichage de la décision, du pourcentage de fraude et du récapitulatif.
-
-Les menus sont traduits en français, tandis que les valeurs transmises à l’API conservent les codes utilisés à l’entraînement. Aucun modèle n’est chargé dans Streamlit : l’inférence et la décision sont réalisées par FastAPI.
-
-Les informations du modèle sont mises en cache pendant 60 secondes par URL, avec un délai HTTP de 5 secondes et un bouton d’actualisation. La prédiction est demandée uniquement à la soumission du formulaire, avec un délai de 12 secondes. L’interface affiche les erreurs du service et efface l’ancien résultat lorsqu’une nouvelle analyse échoue.
-
-Le thème est défini dans `.streamlit/config.toml` et les styles complémentaires dans `10_app_streamlit/style.css`. La [documentation de l’interface](10_app_streamlit/README.md) détaille le lancement et le dépannage de cette partie.
-
-## Exécution avec Docker
-
-Deux Dockerfiles sont présents, avec une base `ghcr.io/astral-sh/uv:python3.14-bookworm-slim`. Le contexte de construction est **la racine du projet**, afin d’inclure le package, sa configuration et les artefacts nécessaires à l’API.
-
-Construire les images :
+Construction depuis **la racine du dépôt** :
 
 ```bash
 docker build -f 09_app_fastapi/Dockerfile -t fraudlens-api .
-docker build -f 10_app_streamlit/Dockerfile -t fraudlens-streamlit .
+docker build -f 10_app_react/Dockerfile --target plain -t fraudlens-react .
+docker build -f 10_app_react/Dockerfile --target gcp -t fraudlens-react-gcp .
 ```
 
-Créer un réseau commun :
+Deux variantes partagent la même interface : **sans token**, ou **avec un ID token GCP obtenu côté serveur** pour une API Cloud Run protégée. `FRAUD_API_URL` configure l’adresse FastAPI ; le second mode se lance avec `npm run dev:gcp`.
+
+Les modèles et les exports sont embarqués dans l’image API. L’image React reste indépendante des données. Voir le [README de l’interface](10_app_react/README.md) pour les variables d’environnement, l’authentification, l’exécution des conteneurs et les volumes.
+
+## Vérifications et limites
+
+Les tests couvrent les exports, le relais API, les erreurs, la cohérence des scores/explications et l’affichage mobile :
 
 ```bash
-docker network create fraudlens-network
+uv run python -m unittest discover -s 10_app_react/tests -p 'test_*.py'
+cd 10_app_react
+npm test
+npm run build
 ```
 
-Lancer l’API dans un premier terminal :
+Les tests navigateur Playwright et leur installation sont détaillés dans le README React. Le test d’inférence réelle est optionnel et nécessite une API démarrée avec ses artefacts (`FRAUD_LIVE_API=1`).
 
-```bash
-docker run --rm --name fraudlens-api \
-  --network fraudlens-network \
-  -p 127.0.0.1:8000:8000 \
-  fraudlens-api
-```
-
-Lancer Streamlit dans un second terminal :
-
-```bash
-docker run --rm --name fraudlens-streamlit \
-  --network fraudlens-network \
-  -p 127.0.0.1:8501:8501 \
-  -e FRAUD_API_URL=http://fraudlens-api:8000 \
-  fraudlens-streamlit \
-  uv run --no-sync streamlit run 10_app_streamlit/app_streamlit.py \
-  --server.address=0.0.0.0 --server.port=8501
-```
-
-L’interface reste accessible sur <http://localhost:8501>. Depuis son conteneur, elle contacte l’API avec le nom `fraudlens-api` sur le réseau Docker. L’adresse d’écoute Streamlit est explicitée dans la commande de lancement.
-
-`.dockerignore` exclut notamment les données, les notebooks, les scripts d’entraînement, les environnements locaux et les fichiers de secrets du contexte de construction. Les artefacts du modèle sont copiés dans l’image API. Les images doivent être reconstruites après modification des fichiers qu’elles embarquent.
-
-Les Dockerfiles décrivent la construction des services ; leur présence ne constitue pas une validation de leur exécution. Aucun déploiement cloud ni pipeline Cloud Build opérationnel n’est documenté dans le dépôt à ce stade.
-
-## Limites actuelles et prochaines étapes
-
-| Sujet | État actuel et suite envisagée |
-| --- | --- |
-| Traçabilité des données | Documenter la source, les conditions d’utilisation et la méthode de constitution de `Full` et `Sample`, puis ajouter une procédure d’acquisition reproductible. |
-| Résultats du modèle servi | Réévaluer l’artefact actuel sur les jeux temporels et enregistrer métriques, paramètres, versions et seuil dans un rapport associé. Les tableaux de ce README sont issus des notebooks. |
-| Alertes et fraudes manquées | Les sorties historiques donnent 37,28 % de précision et 65,60 % de rappel sur le test au seuil optimisé. Compléter l’analyse par la courbe précision–rappel, l’average precision et les coûts opérationnels réellement retenus. |
-| Protocole temporel | Le découpage principal est chronologique, mais les plis internes d’encodage et la recherche d’hyperparamètres ne suivent pas un protocole temporel. Évaluer une validation glissante et la stabilité des résultats par période. |
-| Probabilités | Le notebook explore la calibration, mais le pipeline final ne comporte pas de calibrateur. Évaluer la calibration du modèle sauvegardé avant d’interpréter ses scores comme des risques opérationnels. |
-| Qualité des données | Les scripts contrôlent surtout les dimensions et la cible. Les contrôles plus complets, notamment via Great Expectations mentionné dans les commentaires, restent à implémenter. |
-| Reproductibilité des notebooks | Des cellules conservent des essais, des chemins absolus et des sorties historiques. Harmoniser les notebooks avec les scripts avant de garantir une exécution intégrale dans l’ordre. |
-| Règle au seuil | L’optimiseur compte une fraude pour `p >= seuil`, tandis que les métriques du workflow et l’API utilisent `p > seuil`. Harmoniser ce cas limite. |
-| Versions et chargement | Harmoniser les versions déclarées et rendre configurables les chemins `Full` actuellement fixés dans l’API. |
-| Tests et exploitation | Les essais d’API sont manuels. Ajouter des tests automatisés du pipeline et du contrat HTTP, puis compléter Cloud Build et le suivi des performances et de la dérive des données. |
-
-Cette documentation décrit les sources, la configuration, les sorties de notebooks et les artefacts disponibles au 22 octobre 2026. Les métriques n’ont pas été recalculées lors de sa rédaction et les services n’ont pas été relancés dans l’environnement de revue, dont les dépendances Python ne sont pas installées.
+Le périmètre reste celui d’un **prototype sur données synthétiques**. Les scores ne déclenchent aucun blocage bancaire. La récupération financière est simulée, le pipeline actif ne comporte pas de calibrateur supplémentaire, et le calcul des historiques est effectué hors ligne. Un usage réel demanderait une validation sur données bancaires, un suivi de dérive et une alimentation des historiques adaptée aux nouveaux paiements.
 
 ## Licence
 
-Le code est distribué sous [licence MIT](LICENSE).
+[MIT](LICENSE) · Daren Mabanza.
