@@ -60,7 +60,7 @@ class CustomIsolationForest(TransformerMixin, BaseEstimator):
     ``set_output(transform="pandas")`` fournit un DataFrame avec la colonne
     ``score_anomalie`` et conserve l'index d'entrée. Dans un ColumnTransformer,
     utiliser une branche passthrough supplémentaire pour conserver aussi
-    les variables numériques d'origine, par exemple amt.
+    les variables numériques d'origine, par exemple montant_eur.
 
     La classe s'utilise directement dans Pipeline, sans FunctionTransformer.
     Les paramètres sont accessibles via get_params/set_params et peuvent

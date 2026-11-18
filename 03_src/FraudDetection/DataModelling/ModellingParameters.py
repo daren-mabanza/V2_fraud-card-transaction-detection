@@ -1,4 +1,4 @@
-"""Fabriques des encodeurs, du classifieur et de l’optimiseur de seuil du projet."""
+"""Fabriques des transformateurs et du classifieur du pipeline XGBoost V2."""
 
 import numpy as np
 import pandas as pd
@@ -12,6 +12,11 @@ from FraudDetection.DataModelling.ModellingTools import CustomIsolationForest
 
 # ------------------------------------------------------------------------------------------------------ 
 def features_selected():
+    """Renvoie les noms des 71 variables d'entrée, dans l'ordre du pipeline.
+
+    La liste contient le contexte du paiement et les habitudes historiques,
+    sans identifiant, cible de fraude ni date de confirmation.
+    """
 
     features = [
     'montant_eur',
@@ -93,6 +98,11 @@ def features_selected():
 
 
 def one_hot_encoding():
+    """Crée un OneHotEncoder non ajusté, avec une sortie dense.
+
+    Les catégories inconnues à la transformation sont ignorées : leurs
+    indicatrices valent zéro. Les catégories sont apprises lors du fit.
+    """
 
     custom_one_hot_encoding = OneHotEncoder(
         handle_unknown="ignore",
@@ -115,16 +125,11 @@ def numeriques_sans_nan(X):
 
 
 def custom_isolation_forest():
-    """Crée le transformateur qui calcule le score d'anomalie des transactions.
+    """Crée le transformateur d'anomalie non ajusté utilisé par le pipeline.
 
-    Returns
-    -------
-    CustomIsolationForest
-        Instance non ajustée avec 300 arbres, max_samples="auto" et
-        contamination=0.01. Les autres paramètres gardent leurs défauts.
-        Après fit, transform produit uniquement score_anomalie, égal à
-        l'opposé de decision_function : un score plus élevé indique
-        une transaction plus atypique, sans être une probabilité de fraude.
+    Configure 300 arbres et une contamination de 0,006. Après fit, la sortie
+    ``score_anomalie`` vaut l'opposé de ``decision_function`` : une valeur
+    plus élevée indique un paiement plus atypique, pas une probabilité de fraude.
     """
     
     custom_isolation_forest = CustomIsolationForest(
@@ -138,20 +143,11 @@ def custom_isolation_forest():
 
 
 def xgboost():
-    """Crée le classifieur XGBoost avec les hyperparamètres du projet.
+    """Crée le classifieur XGBoost non entraîné avec les paramètres du projet.
 
-    Returns
-    -------
-    XGBClassifier
-        Nouvelle instance non entraînée. La configuration fixe notamment
-        305 arbres, une profondeur maximale de 8, le taux d'apprentissage,
-        les proportions d'échantillonnage et les pénalités de régularisation.
-        Appeler fit sur les variables préparées avant toute prédiction.
-
-    Notes
-    -----
-    Cette fonction ne réalise aucune recherche d'hyperparamètres ;
-    elle instancie les valeurs déclarées dans son corps.
+    Configure notamment 135 arbres, une profondeur maximale de 6, un taux
+    d'apprentissage de 0,02 et ``scale_pos_weight=3``. Cette fonction
+    n'effectue ni recherche d'hyperparamètres ni entraînement.
     """
     
     xgboost = XGBClassifier(

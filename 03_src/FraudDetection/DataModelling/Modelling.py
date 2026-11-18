@@ -1,4 +1,4 @@
-"""Workflow de modélisation : préparation, entraînement, évaluation et export."""
+"""Entraînement et export du pipeline XGBoost V2 sur les paiements préparés."""
 
 import yaml
 import joblib
@@ -26,50 +26,22 @@ from sklearn.compose import ColumnTransformer, make_column_selector
 # ------------------------------------------------------------------------------------------------------ 
 
 def modelling():
-    """Exécute le workflow de détection de fraude et exporte le pipeline entraîné.
+    """Entraîne le pipeline XGBoost V2 et l'enregistre avec joblib.
 
-    Lit le type d'échantillon dans ``11_configs/paths.yaml``, puis charge
-    ``01_data/03_processed_data/{echantillon}DataForModel.parquet``.
-    Les chemins sont relatifs au répertoire de travail : lancer cette
-    fonction depuis la racine du projet.
+    Lit l'échantillon dans ``11_configs/paths.yaml`` et charge le Parquet
+    ``{echantillon}PaiementsCarteForModel.parquet``. L'entraînement utilise
+    les paiements du 31 décembre 2023 au 1er janvier 2025 exclu, en UTC,
+    avec les 71 variables sélectionnées et la cible ``fraude_confirmee``.
 
-    Le découpage chronologique réserve 2019 à l'entraînement, janvier à
-    septembre 2020 à la validation et octobre à décembre 2020 au test.
-    Les variables d'entrée sont amt, heure, jour, category et state ;
-    is_fraud contient la cible binaire et trans_date_trans_time la date.
+    Le pipeline combine encodage catégoriel, score d'anomalie et XGBoost.
+    Il remplace ``06_models/{echantillon}XGBoostPipeline_V2.joblib`` et
+    affiche la progression ainsi que la durée du fit complet.
+    Lancer depuis la racine du projet ; aucun seuil n'est optimisé ici.
 
-    Le preprocessing construit les niveaux de risque hors pli sur le
-    train, les encode en indicatrices et ajoute un score d'anomalie.
-    XGBoost apprend ensuite sur ces données préparées. Les temps du
-    preprocessing et du fit du classifieur sont mesurés séparément.
-    Le seuil minimisant le coût des erreurs est choisi sur la validation,
-    puis les métriques sont affichées pour les trois jeux.
-
-    Returns
-    -------
-    None
-        Affiche l'avancement, les durées, le seuil et les métriques.
-        Écrit le pipeline entraîné avec joblib dans
-        ``06_models/{echantillon}XGBoostModel_V1.joblib``.
-
-    Raises
-    ------
-    FileNotFoundError
-        Si la configuration, les données ou le dossier d'export manquent.
-    KeyError
-        Si une clé de configuration ou une colonne requise manque.
-    ValueError
-        Si les dates, les données ou les contrôles de dimensions sont
-        invalides. Le workflow attend 5 variables avant preprocessing
-        et 18 après preprocessing.
-
-    Notes
-    -----
-    Le fichier joblib existant au même emplacement est remplacé.
-    Le seuil optimisé et les durées sont affichés mais ne sont ni
-    retournés ni enregistrés dans ce fichier, qui contient le pipeline.
-    Les décisions des métriques utilisent ``probabilité > seuil`` ;
-    l'optimiseur de coût utilise ``probabilité >= seuil``.
+    Raises:
+        FileNotFoundError: Si la configuration, les données ou le dossier de sortie manquent.
+        KeyError: Si une clé de configuration ou une colonne requise manque.
+        ValueError: Si les dates, les variables ou les données d'entraînement sont invalides.
     """
     
     # 0. Import des configurations
