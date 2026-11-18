@@ -10,6 +10,14 @@ import pandas as pd
 # -------------------------------------------------------------------------------------------
 
 def export_test_data():
+    """Exporte les dix paiements présélectionnés du 21 avril 2025 en Parquet.
+
+    Lit l'échantillon configuré et filtre les données préparées sur la liste
+    d'identifiants définie dans la fonction. Les colonnes et l'ordre de la
+    source sont conservés, sans scoring ni réentraînement.
+    Remplace ``01_data/04_test_data/observations_2025_04_21.parquet`` ;
+    le dossier doit exister et l'appel doit se faire depuis la racine du projet.
+    """
 
     # 0. Import des configurations
     config = yaml.safe_load(open("11_configs/paths.yaml"))

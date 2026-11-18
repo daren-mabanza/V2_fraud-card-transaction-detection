@@ -1,8 +1,7 @@
-"""Export des tableaux d'évaluation métier du XGBoost, sans dépendance au notebook.
+"""Export des tableaux d'évaluation métier et de leur manifeste JSON.
 
-Usage : ``from FraudDetection.DataModelling.Export import export_metriques_metier``.
-Le module peut aussi être exécuté avec ``python -m FraudDetection.DataModelling.Export``.
-Aucune lecture, prédiction ou écriture n'est effectuée lors de son import.
+Utiliser ``export_metrics`` depuis ce module ou lancer
+``04_scripts/step_4_export_metrics.py``. L'import n'effectue aucun export.
 """
 
 from collections.abc import Mapping, Sequence
@@ -38,6 +37,7 @@ def _chemin_projet(chemin: str | Path) -> Path:
 
 
 def _sha256(chemin: Path) -> str:
+    """Calcule et renvoie l’empreinte SHA-256 hexadécimale du fichier fourni."""
     with chemin.open("rb") as fichier:
         return hashlib.file_digest(fichier, "sha256").hexdigest()
 
@@ -73,65 +73,43 @@ def export_metrics(
     fin_train: str | pd.Timestamp = "2025-01-01",
     fuseau: str = TZ_METIER,
 ) -> dict[str, Path]:
-    """Calcule et exporte les cinq tableaux métier sélectionnés dans le notebook.
+    """Évalue le pipeline ajusté face aux règles métier et exporte les résultats.
 
-    Le modèle entraîné est chargé avec joblib, sans fit ni recherche de seuil.
-    Toutes les transactions hors train des mois retenus sont éligibles : priorité
-    par somme des probabilités pour ML, somme des points pour Regle, puis nombre
-    de transactions, montant et identifiant de carte. Une file indépendante est
-    simulée par mois/méthode/capacité ; les cartes peuvent être rouvertes.
+    Simule une file indépendante par mois, méthode et capacité, sans
+    réentraîner le modèle. Les labels servent à évaluer les dossiers après
+    leur sélection ; ils ne participent pas à leur classement.
 
     Args:
-        echantillon: Full ou Sample. Si None, lit echantillon.type dans
-            11_configs/paths.yaml, une fois à l'appel de la fonction.
-        source: Parquet préparé. Par défaut :
-            01_data/03_processed_data/{echantillon}PaiementsCarteForModel.parquet.
-        modele: Pipeline XGBoost ajusté. Par défaut :
-            06_models/{echantillon}XGBoostPipeline_V2.joblib.
-        dossier_export: Répertoire des CSV et du manifeste JSON.
-        mois: Mois explicites, janvier–juin 2025 par défaut. Un seul mois est
-            accepté. None sélectionne les trois mois précédant celui du dernier
-            paiement ; le dernier mois est exclu, potentiellement incomplet.
-        scenarios: Noms et capacités journalières ; par défaut ordinaire_10=10
-            et complexe_8=8. Aucune qualification simple/complexe des dossiers.
-        heure_revue: Heure locale de traitement, de 0 à 23.
-        exclure_feries: Exclure les fériés du calendrier métropolitain.
-        fin_train: Borne de fin EXCLUE de l'entraînement. Les paiements antérieurs
-            sont exclus de l'évaluation, y compris la première heure Paris de
-            janvier si la borne est le 1er janvier UTC. Une date naïve est UTC.
-            Ce paramètre doit correspondre à l'entraînement réel de l'artefact.
-        fuseau: Calendrier et horloge du score métier, Europe/Paris par défaut.
+        echantillon: ``Full`` ou ``Sample`` ; lu dans la configuration si absent.
+        source: Parquet préparé ; par défaut, celui de l'échantillon choisi.
+        modele: Pipeline joblib ajusté ; par défaut, le XGBoost V2 de l'échantillon.
+        dossier_export: Dossier des résultats, créé si nécessaire.
+        mois: Mois à évaluer, janvier à juin 2025 par défaut. ``None`` retient
+            les trois mois précédant celui du dernier paiement.
+        scenarios: Capacités quotidiennes nommées ; par défaut, 10 et 8 dossiers.
+            Ces scénarios ne classent pas automatiquement la complexité des dossiers.
+        heure_revue: Heure locale de traitement, entre 0 et 23.
+        exclure_feries: Exclut les jours fériés métropolitains des sessions.
+        fin_train: Fin exclue du train, à faire correspondre au modèle chargé.
+            Les paiements antérieurs sont exclus ; une date sans fuseau est UTC.
+        fuseau: Fuseau du calendrier et du score métier, Europe/Paris par défaut.
 
     Returns:
-        Dictionnaire des chemins absolus de six fichiers préfixés Full_ ou Sample_ :
-        exposition_mensuelle_metier.csv, capacites_mensuelles_metier.csv,
-        metriques_simulation_metier.csv, ecarts_ml_regle_metier.csv,
-        synthese_periode_metier.csv et parametres_export_metier.json.
-        Les CSV sont UTF-8, séparés par virgules, sans index implicite ni arrondi.
-        Les ratios sans dénominateur restent manquants (champ vide).
+        Dictionnaire des chemins absolus de cinq CSV et d'un manifeste JSON.
+        Les fichiers existants sont remplacés. Le manifeste conserve les
+        paramètres et empreintes des sources ; les ratios indéfinis restent vides.
 
     Raises:
         FileNotFoundError: Si la configuration, la source ou le modèle manque.
-        KeyError: Si une clé de configuration requise est absente.
-        TypeError: Si l'artefact n'est pas le pipeline XGBoost attendu.
-        ValueError: Si les paramètres, dates, probabilités ou données sont invalides.
+        KeyError: Si une clé de configuration ou une colonne requise manque.
+        TypeError: Si l'artefact n'est pas un pipeline XGBoost.
+        ValueError: Si les paramètres, les données ou les résultats sont invalides.
         OSError: Si la création du dossier ou une écriture échoue.
 
     Notes:
-        Les chemins relatifs sont résolus depuis la racine du projet. Le dossier
-        d'export est créé au besoin ; les fichiers de même nom sont remplacés.
-        Le manifeste trace les chemins et empreintes SHA-256, les mois, le cutoff,
-        le calendrier, les capacités et les colonnes réellement utilisées.
-        Labels et confirmations servent uniquement à l'évaluation après sélection.
+        Les chemins relatifs sont résolus depuis la racine du projet.
         Le montant récupérable suppose une récupération intégrale des fraudes
-        contrôlées avant confirmation ; aucune récupération réelle n'est observée.
-        Seuls les tableaux sélectionnés sont exportés, pas les journaux détaillés
-        de chaque simulation. Les données sont prédites mois par mois pour limiter
-        la mémoire. fin_train est déclaré par l'appelant, pas déduit du joblib.
-
-    Examples:
-        >>> chemins = export_metriques_metier(echantillon="Full")
-        >>> metriques = pd.read_csv(chemins["metriques_simulation_metier"])
+        contrôlées avant confirmation ; il ne mesure pas une récupération réelle.
     """
     if echantillon is None:
         config = yaml.safe_load((RACINE_PROJET / "11_configs/paths.yaml").read_text())

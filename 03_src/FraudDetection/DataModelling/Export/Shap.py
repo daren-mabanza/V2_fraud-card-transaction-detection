@@ -15,6 +15,17 @@ from FraudDetection.DataModelling.ModellingParameters import features_selected
 
 
 def export_shap():
+    """Construit et exporte l'explainer SHAP du pipeline XGBoost V2 existant.
+
+    Lit l'échantillon dans la configuration et tire 10 000 paiements du train,
+    stratifiés sur ``fraude_confirmee``. Le train va du 31 décembre 2023
+    au 1er janvier 2025 exclu, en UTC. Le preprocessing déjà ajusté transforme
+    ces lignes ; le classifieur n'est pas réentraîné.
+
+    Le TreeExplainer utilise cette référence pour expliquer les probabilités
+    et remplace ``06_models/{echantillon}XGBoostExplainer_V2.joblib``.
+    Lancer depuis la racine du projet, avec les données et le pipeline disponibles.
+    """
 
     # 0. Import des configurations
     config = yaml.safe_load(open("11_configs/paths.yaml"))
